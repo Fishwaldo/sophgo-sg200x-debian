@@ -1,0 +1,475 @@
+From 172cb98bcae844f747b5ef41f05cc6073fa464b4 Mon Sep 17 00:00:00 2001
+From: Justin Hammond <justin@dynam.ac>
+Date: Sat, 6 Apr 2024 14:30:10 +0800
+Subject: [PATCH 3/4] Add Remoteproc Driver for cvitek
+
+---
+ drivers/remoteproc/Kconfig             |  10 +
+ drivers/remoteproc/Makefile            |   1 +
+ drivers/remoteproc/cvitek_remoteproc.c | 424 +++++++++++++++++++++++++
+ 3 files changed, 435 insertions(+)
+ create mode 100644 drivers/remoteproc/cvitek_remoteproc.c
+
+diff --git a/drivers/remoteproc/Kconfig b/drivers/remoteproc/Kconfig
+index d99548fb5dde..0bb9fcbde9d0 100644
+--- a/drivers/remoteproc/Kconfig
++++ b/drivers/remoteproc/Kconfig
+@@ -247,6 +247,16 @@ config ST_REMOTEPROC
+ config ST_SLIM_REMOTEPROC
+ 	tristate
+ 
++config CVITEK_REMOTEPROC
++	tristate "CVITEK remoteproc support"
++	depends on ARCH_CVITEK
++	select MAILBOX
++	select CVITEK_MAILBOX
++	help
++	  Say y here to support cvitek processors via the remote
++	  processor framework.
++	  This can be either built-in or a loadable module.
++
+ config STM32_RPROC
+ 	tristate "STM32 remoteproc support"
+ 	depends on ARCH_STM32
+diff --git a/drivers/remoteproc/Makefile b/drivers/remoteproc/Makefile
+index da2ace4ec86c..047fbfa8b72d 100644
+--- a/drivers/remoteproc/Makefile
++++ b/drivers/remoteproc/Makefile
+@@ -34,3 +34,4 @@ obj-$(CONFIG_ST_SLIM_REMOTEPROC)	+= st_slim_rproc.o
+ obj-$(CONFIG_STM32_RPROC)		+= stm32_rproc.o
+ obj-$(CONFIG_TI_K3_DSP_REMOTEPROC)	+= ti_k3_dsp_remoteproc.o
+ obj-$(CONFIG_TI_K3_R5_REMOTEPROC)	+= ti_k3_r5_remoteproc.o
++obj-$(CONFIG_CVITEK_REMOTEPROC) 	+= cvitek_remoteproc.o
+diff --git a/drivers/remoteproc/cvitek_remoteproc.c b/drivers/remoteproc/cvitek_remoteproc.c
+new file mode 100644
+index 000000000000..64e0ce21d711
+--- /dev/null
++++ b/drivers/remoteproc/cvitek_remoteproc.c
+@@ -0,0 +1,424 @@
++// SPDX-License-Identifier: GPL-2.0-only
++/*
++ * ST's Remote Processor Control Driver
++ *
++ * Copyright (C) 2015 STMicroelectronics - All Rights Reserved
++ *
++ * Author: Ludovic Barre <ludovic.barre@st.com>
++ */
++
++#include <linux/bitops.h>
++#include <linux/clk.h>
++#include <linux/dma-mapping.h>
++#include <linux/err.h>
++#include <linux/interrupt.h>
++#include <linux/kernel.h>
++#include <linux/mailbox_client.h>
++#include <linux/mfd/syscon.h>
++#include <linux/module.h>
++#include <linux/of.h>
++#include <linux/of_address.h>
++#include <linux/of_device.h>
++#include <linux/of_reserved_mem.h>
++#include <linux/platform_device.h>
++#include <linux/regmap.h>
++#include <linux/remoteproc.h>
++#include <linux/reset.h>
++
++#include "remoteproc_internal.h"
++
++#define CVITEK_RPROC_MAX_VRING 2
++
++#define MBOX_RX 0
++#define MBOX_TX 1
++#define MBOX_MAX 2
++
++struct cvitek_rproc_config {};
++
++struct cvitek_rproc {
++	struct cvitek_rproc_config *config;
++	struct reset_control *sw_reset;
++	struct clk *clk;
++	struct mbox_chan *mbox_chan[MBOX_MAX];
++	struct mbox_client mbox_client_vq;
++	struct workqueue_struct *workqueue;
++	struct work_struct vq_work;
++	uint32_t vq_msg;
++};
++
++static void cvitek_rproc_mbox_kick_vq(struct work_struct *work)
++{
++	struct cvitek_rproc *ddata = container_of(work, struct cvitek_rproc, vq_work);
++	struct rproc *rproc = dev_get_drvdata(ddata->mbox_client_vq.dev);
++
++	if (ddata->vq_msg < CVITEK_RPROC_MAX_VRING) {
++		if (rproc_vq_interrupt(rproc, ddata->vq_msg) == IRQ_NONE) {
++			dev_dbg(rproc->dev.parent, "no message was found in vqid %d\n", ddata->vq_msg);
++		}
++	}
++
++#if 0
++	struct rproc *rproc = dev_get_drvdata(mbox_client->dev);
++
++	uint32_t msg = *(uint32_t *)data;
++
++	dev_dbg(mbox_client->dev, "mbox_callback_vq %d\n", msg);
++
++	if (rproc_vq_interrupt(rproc, msg) == IRQ_NONE)
++		dev_dbg(mbox_client->dev, "no message was found in vqid %d\n", msg);
++#endif
++}
++
++static void cvitek_rproc_mbox_callback_vq(struct mbox_client *mbox_client,
++					  void *data)
++{
++	struct rproc *rproc = dev_get_drvdata(mbox_client->dev);
++	struct cvitek_rproc *ddata = rproc->priv;
++
++	ddata->vq_msg = *(uint32_t *)data;
++
++	dev_dbg(mbox_client->dev, "mbox_callback_vq %d\n", ddata->vq_msg);
++
++	queue_work(ddata->workqueue, &ddata->vq_work);
++
++
++}
++
++static void cvitek_rproc_kick(struct rproc *rproc, int vqid)
++{
++	struct cvitek_rproc *ddata = rproc->priv;
++	struct device *dev = rproc->dev.parent;
++	int ret;
++
++	dev_dbg(dev, "kicking Remote Processor %d", vqid);
++
++	/* send the index of the triggered virtqueue in the mailbox payload */
++	if (WARN_ON(vqid >= CVITEK_RPROC_MAX_VRING))
++		return;
++
++	ret = mbox_send_message(ddata->mbox_chan[MBOX_TX], (void *)&vqid);
++	if (ret < 0)
++		dev_err(dev, "failed to send message via mbox: %d\n", ret);
++}
++
++static int cvitek_rproc_mem_alloc(struct rproc *rproc,
++				  struct rproc_mem_entry *mem)
++{
++	struct device *dev = rproc->dev.parent;
++	void *va;
++
++	dev_dbg(dev, "Allocating memory region %s: %pa+%zx\n", mem->name,
++		&mem->dma, mem->len);
++
++	va = ioremap_wc(mem->dma, mem->len);
++	if (!va) {
++		dev_err(dev, "Unable to map memory region %s: %pa+%zx\n",
++			mem->name, &mem->dma, mem->len);
++		return -ENOMEM;
++	}
++
++	/* Update memory entry va */
++	mem->va = va;
++
++	return 0;
++}
++
++static int cvitek_rproc_mem_release(struct rproc *rproc,
++				    struct rproc_mem_entry *mem)
++{
++	dev_dbg(rproc->dev.parent, "Releasing memory region %s: %pa+%zx\n",
++		mem->name, &mem->dma, mem->len);
++	iounmap(mem->va);
++
++	return 0;
++}
++
++static int cvitek_rproc_parse_fw(struct rproc *rproc, const struct firmware *fw)
++{
++	struct device *dev = rproc->dev.parent;
++	struct device_node *np = dev->of_node;
++	struct rproc_mem_entry *mem;
++	struct reserved_mem *rmem;
++	struct of_phandle_iterator it;
++	int index = 0;
++
++	dev_dbg(dev, "Parsing firmware\n");
++
++	of_phandle_iterator_init(&it, np, "memory-region", NULL, 0);
++	while (of_phandle_iterator_next(&it) == 0) {
++		dev_dbg(dev, "memory-region: %s\n", it.node->name);
++		rmem = of_reserved_mem_lookup(it.node);
++		if (!rmem) {
++			dev_err(dev, "unable to acquire memory-region\n");
++			return -EINVAL;
++		}
++
++		/*  No need to map vdev buffer */
++		if (strcmp(it.node->name, "vdev0buffer")) {
++			/* Register memory region */
++			dev_dbg(dev, "Registering memory region: %pa+%llx\n",
++				&rmem->base, rmem->size);
++			mem = rproc_mem_entry_init(
++				dev, NULL, (dma_addr_t)rmem->base, rmem->size,
++				rmem->base, cvitek_rproc_mem_alloc,
++				cvitek_rproc_mem_release, it.node->name);
++		} else {
++			dev_dbg(dev,
++				"Registering reserved memory region: %pa+%llx\n",
++				&rmem->base, rmem->size);
++			/* Register reserved memory for vdev buffer allocation */
++			mem = rproc_of_resm_mem_entry_init(dev, index,
++							   rmem->size,
++							   rmem->base,
++							   it.node->name);
++		}
++
++		if (!mem) {
++			dev_dbg(dev, "failed to allocate memory region\n");
++			return -ENOMEM;
++		}
++		rproc_add_carveout(rproc, mem);
++		index++;
++	}
++
++	return rproc_elf_load_rsc_table(rproc, fw);
++}
++
++static int cvitek_rproc_start(struct rproc *rproc)
++{
++	struct cvitek_rproc *ddata = rproc->priv;
++	int err;
++	struct mbox_chan *chan;
++
++	dev_dbg(&rproc->dev, "Starting\n");
++
++
++	if (ddata->mbox_client_vq.dev) {
++		/*
++		* To control a co-processor without IPC mechanism.
++		* This driver can be used without mbox and rpmsg.
++		*/
++		chan = mbox_request_channel_byname(&ddata->mbox_client_vq,
++						"vq_rx");
++		if (IS_ERR(chan)) {
++			dev_err(&rproc->dev,
++				"failed to request mbox chan vq0_rx\n");
++			return PTR_ERR(chan);
++		}
++		ddata->mbox_chan[MBOX_RX] = chan;
++
++		chan = mbox_request_channel_byname(&ddata->mbox_client_vq,
++							"vq_tx");
++		if (IS_ERR(chan)) {
++			dev_err(&rproc->dev,
++				"failed to request mbox chan vq0_tx\n");
++			return PTR_ERR(chan);
++		}
++		ddata->mbox_chan[MBOX_TX] = chan;
++	}
++
++	err = clk_enable(ddata->clk);
++	if (err) {
++		dev_err(&rproc->dev, "Failed to enable clock\n");
++		return err;
++	}
++
++	err = reset_control_deassert(ddata->sw_reset);
++	if (err) {
++		dev_err(&rproc->dev, "Failed to deassert S/W Reset\n");
++		goto sw_reset_fail;
++	}
++
++	dev_info(&rproc->dev, "Started from 0x%llx\n", rproc->bootaddr);
++
++	return 0;
++
++sw_reset_fail:
++	clk_disable(ddata->clk);
++	return err;
++}
++
++static int cvitek_rproc_stop(struct rproc *rproc)
++{
++	struct cvitek_rproc *ddata = rproc->priv;
++	int sw_err = 0;
++
++	dev_dbg(&rproc->dev, "Stopping\n");
++
++	sw_err = reset_control_assert(ddata->sw_reset);
++	if (sw_err)
++		dev_err(&rproc->dev, "Failed to assert S/W Reset\n");
++
++	clk_disable(ddata->clk);
++
++	if (ddata->mbox_client_vq.dev) {
++		mbox_free_channel(ddata->mbox_chan[MBOX_RX]);
++		mbox_free_channel(ddata->mbox_chan[MBOX_TX]);
++	}
++
++
++	return sw_err;
++}
++
++static const struct rproc_ops cvitek_rproc_ops = {
++	.kick = cvitek_rproc_kick,
++	.start = cvitek_rproc_start,
++	.stop = cvitek_rproc_stop,
++	.parse_fw = cvitek_rproc_parse_fw,
++	.load = rproc_elf_load_segments,
++	.find_loaded_rsc_table = rproc_elf_find_loaded_rsc_table,
++	.sanity_check = rproc_elf_sanity_check,
++	.get_boot_addr = rproc_elf_get_boot_addr,
++};
++
++static const struct of_device_id cvitek_rproc_match[] = {
++	{ .compatible = "cvitek,cv181x-c906_1" },
++	{},
++};
++
++MODULE_DEVICE_TABLE(of, cvitek_rproc_match);
++
++static int cvitek_rproc_parse_dt(struct platform_device *pdev)
++{
++	struct device *dev = &pdev->dev;
++	struct rproc *rproc = platform_get_drvdata(pdev);
++	struct cvitek_rproc *ddata = rproc->priv;
++	//struct device_node *np = dev->of_node;
++
++	int ret;
++
++	dev_dbg(dev, "Parsing device tree\n");
++
++	ddata->sw_reset = devm_reset_control_get_exclusive(dev, "sw_reset");
++	if (IS_ERR(ddata->sw_reset)) {
++		dev_err(dev, "Failed to get S/W Reset\n");
++		return PTR_ERR(ddata->sw_reset);
++	}
++
++	ddata->clk = devm_clk_get(dev, NULL);
++	if (IS_ERR(ddata->clk)) {
++		dev_err(dev, "Failed to get clock\n");
++		return PTR_ERR(ddata->clk);
++	}
++
++	ret = clk_prepare(ddata->clk);
++	if (ret)
++		dev_err(dev, "failed to get clock\n");
++	return ret;
++}
++
++static int cvitek_rproc_probe(struct platform_device *pdev)
++{
++	struct device *dev = &pdev->dev;
++	const struct of_device_id *match;
++	struct cvitek_rproc *ddata;
++	struct device_node *np = dev->of_node;
++	struct rproc *rproc;
++	const char *fw_name;
++	int ret;
++
++	match = of_match_device(cvitek_rproc_match, dev);
++	if (!match) {
++		dev_err(dev, "No device match found\n");
++		return -ENODEV;
++	}
++
++	ret = of_property_read_string(dev->of_node, "firmware", &fw_name);
++	if (ret) {
++		dev_err(dev, "No firmware filename given\n");
++		return -ENODEV;
++	}
++
++	rproc = rproc_alloc(dev, np->name, &cvitek_rproc_ops, fw_name,
++			    sizeof(*ddata));
++	if (!rproc) {
++		dev_err(dev, "failed to allocate rproc\n");
++		return -ENOMEM;
++	}
++	rproc->has_iommu = false;
++	rproc->auto_boot = false;
++
++	ddata = rproc->priv;
++	ddata->config = (struct cvitek_rproc_config *)match->data;
++
++	platform_set_drvdata(pdev, rproc);
++
++	ddata->workqueue = create_workqueue(dev_name(dev));
++	if (!ddata->workqueue) {
++		dev_err(dev, "cannot create workqueue\n");
++		ret = -ENOMEM;
++		goto free_wkq;
++	}
++
++	INIT_WORK(&ddata->vq_work, cvitek_rproc_mbox_kick_vq);
++
++
++	ret = cvitek_rproc_parse_dt(pdev);
++	if (ret) {
++		dev_err(dev, "failed to parse device tree\n");
++		goto free_rproc;
++	}
++
++	if (of_get_property(np, "mbox-names", NULL)) {
++		dev_dbg(dev, "mbox-names property found\n");
++		ddata->mbox_client_vq.dev = dev;
++		ddata->mbox_client_vq.tx_done = NULL;
++		ddata->mbox_client_vq.tx_block = false;
++		ddata->mbox_client_vq.knows_txdone = false;
++		ddata->mbox_client_vq.rx_callback =
++			cvitek_rproc_mbox_callback_vq;
++	} else {
++		ddata->mbox_client_vq.dev = NULL;
++	}
++
++	ret = rproc_add(rproc);
++	if (ret) {
++		dev_err(dev, "rproc_add failed\n");
++		goto free_clk;
++	}
++
++	return 0;
++
++free_clk:
++	clk_unprepare(ddata->clk);
++free_wkq:
++	destroy_workqueue(ddata->workqueue);
++free_rproc:
++	rproc_free(rproc);
++
++	return ret;
++}
++
++static int cvitek_rproc_remove(struct platform_device *pdev)
++{
++	struct rproc *rproc = platform_get_drvdata(pdev);
++	struct cvitek_rproc *ddata = rproc->priv;
++	int i;
++
++	rproc_del(rproc);
++
++	clk_disable_unprepare(ddata->clk);
++
++	for (i = 0; i < MBOX_MAX; i++)
++		mbox_free_channel(ddata->mbox_chan[i]);
++
++	destroy_workqueue(ddata->workqueue);
++
++	rproc_free(rproc);
++
++	return 0;
++}
++
++static struct platform_driver cvitek_rproc_driver = {
++	.probe = cvitek_rproc_probe,
++	.remove = cvitek_rproc_remove,
++	.driver = {
++		.name = "cvitek-rproc",
++		.of_match_table = of_match_ptr(cvitek_rproc_match),
++	},
++};
++module_platform_driver(cvitek_rproc_driver);
++
++MODULE_DESCRIPTION("CVITEK Remote Processor Control Driver");
++MODULE_AUTHOR("Justin Hammond <justin@dynam.ac>");
++MODULE_LICENSE("GPL v2");
+-- 
+2.44.0
+

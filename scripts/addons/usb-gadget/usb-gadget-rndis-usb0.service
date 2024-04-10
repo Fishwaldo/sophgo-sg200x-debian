@@ -1,0 +1,14 @@
+[Unit]
+Description=USB Gadget Support
+After=usb-gadget.service
+After=ifup@usb0.service
+StartLimitIntervalSec=0
+
+[Service]
+Type=exec
+Restart=on-failure
+ExecStart=/usr/sbin/dnsmasq --conf-file=/dev/null --no-hosts --keep-in-foreground --bind-interfaces --except-interface=lo --clear-on-reload --strict-order --listen-address=10.42.0.1 --dhcp-range=10.42.0.10,10.42.0.254,60m --dhcp-leasefile=/var/lib/NetworkManager/dnsmasq-usb0.leases --pid-file=/run/nm-dnsmasq-usb0.pid --conf-dir=/etc/NetworkManager/dnsmasq-shared.d --dhcp-option=3 --dhcp-option=6
+
+
+[Install]
+WantedBy=sys-subsystem-net-devices-usb0.device

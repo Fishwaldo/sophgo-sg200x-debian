@@ -1,0 +1,105 @@
+name: Build Docker Image
+on:
+  push:
+    tags:
+      - '*'
+    branches:
+      - '*'
+
+jobs:
+  build-docker-image:
+    runs-on: ubuntu-latest 
+    permissions:
+      contents: read
+      packages: write
+    steps:
+        - name: checkout
+          uses: actions/checkout@v4
+        - uses: dorny/paths-filter@v3
+          id: filter
+          with:
+            filters: |
+              src:
+              - 'scripts/**'
+              - '.github/**'
+        - name: Log into registry ghcr.io
+          if: github.event_name != 'pull_request' && steps.filter.outputs.src == 'true'
+          uses: docker/login-action@v3
+          with:
+            registry: ghcr.io
+            username: ${{ github.actor }}
+            password: ${{ secrets.GITHUB_TOKEN }}
+
+        - name: Extract Docker metadata
+          if: steps.filter.outputs.src == 'true'
+          id: meta
+          uses: docker/metadata-action@v5
+          with:
+            images: ghcr.io/fishwaldo/sophgo-sg200x-debian
+
+        - name: Build and push Docker image
+          if: steps.filter.outputs.src == 'true'
+          id: build-and-push
+          uses: docker/build-push-action@v5
+          with:
+            context: .
+            file: ./scripts/Dockerfile
+            push: ${{ github.event_name != 'pull_request' }}
+            tags: ${{ steps.meta.outputs.tags }}
+            labels: ${{ steps.meta.outputs.labels }}
+
+          
+  build-image:
+    strategy:
+      matrix:
+        boards: [licheervnano]
+    runs-on: ubuntu-latest
+    needs: build-docker-image
+    steps:
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+      - name: Get Board Configs
+        uses: actions/checkout@v4
+      - name: Build Images
+        uses: addnab/docker-run-action@v3
+        with:
+          image: ghcr.io/fishwaldo/sophgo-sg200x-debian:master
+          options: --privileged -v ${{ github.workspace }}/images/:/output -v ${{ github.workspace }}/configs/:/configs/
+          run: |
+            make BOARD=${{ matrix.boards }} image
+            chmod 777 /output/
+      - name: Pack
+        run: |
+          cd images/
+          ls -lah
+          if [ -f ${{ matrix.boards }}_sd.img ]; then
+              lz4 -9 -f ${{ matrix.boards }}_sd.img ${{ matrix.boards }}_sd.img.lz4
+              rm ${{ matrix.boards }}_sd.img
+          fi
+          tar czvf ${{ matrix.boards }}_debs.tar.gz *.deb
+          rm *.deb
+          echo "PACKAGE=${{ github.workspace }}/images/*" >> $GITHUB_ENV
+      - name: Upload package
+        uses: actions/upload-artifact@v4
+        with:
+          name: image-files-${{ matrix.boards }}
+          path: |
+            ${{env.PACKAGE}}
+  release:
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    needs: [build-image]
+    permissions: write-all
+    steps:
+      - name: download firmware
+        uses: actions/download-artifact@v4
+      - name: list images
+        run: |
+          ls -lah
+          ls -lah image-files-*/
+      - name: publish artifacts
+        uses: softprops/action-gh-release@v2
+        with:
+          append_body: true
+          files: |
+            image-files-*/*

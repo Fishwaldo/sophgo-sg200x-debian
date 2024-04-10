@@ -1,0 +1,74 @@
+From 9196d5173df6817bbc6ec479bb55adfbe75e78ad Mon Sep 17 00:00:00 2001
+From: Justin Hammond <justin@dynam.ac>
+Date: Fri, 5 Apr 2024 17:19:28 +0000
+Subject: [PATCH] update
+
+---
+ include/configs/mars-asic.h | 23 +++++++++++++++++++----
+ 1 file changed, 19 insertions(+), 4 deletions(-)
+
+diff --git a/include/configs/mars-asic.h b/include/configs/mars-asic.h
+index 12cdefac..81191516 100644
+--- a/include/configs/mars-asic.h
++++ b/include/configs/mars-asic.h
+@@ -9,13 +9,14 @@
+ #define __CV181X_ASIC_H__
+ 
+ #include <../../../board/cvitek/mars/mars_reg.h>
++#include <config_distro_bootcmd.h>
+ 
+ /* defined in cvipart.h */
+ #undef CONFIG_ENV_OFFSET
+ #undef CONFIG_ENV_OFFSET_REDUND
+ #undef CONFIG_ENV_SIZE
+ #undef CONFIG_ENV_IS_IN_SPI_FLASH
+-#undef CONFIG_ENV_IS_IN_MMC
++//#undef CONFIG_ENV_IS_IN_MMC
+ #undef CONFIG_ENV_IS_IN_NAND
+ #undef CONFIG_ENV_SECT_SIZE
+ 
+@@ -181,6 +182,12 @@
+ #define CONFIG_GATEWAYIP		192.168.0.11
+ #define CONFIG_SERVERIP			192.168.56.101
+ 
++#define BOOT_TARGET_DEVICES(func) \
++	func(MMC, mmc, 0) \
++	func(DHCP, dhcp, 0) \
++	func(PXE, pxe, na)
++
++
+ #ifdef CONFIG_USE_DEFAULT_ENV
+ /* The following Settings are chip dependent */
+ /******************************************************************************/
+@@ -256,7 +263,15 @@
+ 		"sdboot=" SD_BOOTM_COMMAND "\0" \
+ 		"sdbootauto=" SD_BOOTM_COMMAND_AUTO "\0" \
+ 		"othbootargs=" OTHERBOOTARGS "\0" \
+-		PARTS_OFFSET
++		"pxefile_addr_r=" __stringify(UPDATE_ADDR) "\0" \
++		"scriptaddr=" __stringify(UPDATE_ADDR) "\0" \
++		"kernel_addr_r=" __stringify(CONFIG_SYS_TEXT_BASE) "\0" \
++		"fdtfile=" FDT_NO ".dtb\0" \
++		"kernel_comp_addr_r=0x88000000\0" \
++		"kernel_comp_size=0x4000000\0" \
++		"fdt_addr_r=" __stringify(UPDATE_ADDR) "\0" \
++		PARTS_OFFSET \
++		BOOTENV
+ 
+ /********************************************************************************/
+ 	/* UBOOT_VBOOT commands */
+@@ -311,9 +326,9 @@
+ 	#ifdef CONFIG_ENABLE_ALIOS_UPDATE
+ 		#define CONFIG_BOOTCOMMAND	"cvi_update_rtos"
+ 	#elif CONFIG_SD_BOOT
+-		#define CONFIG_BOOTCOMMAND	SHOWLOGOCMD "run sdboot || run sdbootauto"
++		#define CONFIG_BOOTCOMMAND	SHOWLOGOCMD "run distro_bootcmd || run sdboot || run sdbootauto"
+ 	#else
+-		#define CONFIG_BOOTCOMMAND	SHOWLOGOCMD "cvi_update || run norboot || run nandboot ||run emmcboot"
++		#define CONFIG_BOOTCOMMAND	SHOWLOGOCMD "run distro_bootcmd || cvi_update || run norboot || run nandboot ||run emmcboot"
+ 	#endif
+ 
+ 	#if defined(CONFIG_NAND_SUPPORT)
+-- 
+2.43.0
+

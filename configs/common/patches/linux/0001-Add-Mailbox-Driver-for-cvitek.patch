@@ -1,0 +1,575 @@
+From fa16b44442fe6aabfd1565567658055a6cc82dca Mon Sep 17 00:00:00 2001
+From: Justin Hammond <justin@dynam.ac>
+Date: Sat, 6 Apr 2024 14:27:58 +0800
+Subject: [PATCH 1/4] Add Mailbox Driver for cvitek
+
+---
+ drivers/mailbox/Kconfig                      |   8 +
+ drivers/mailbox/Makefile                     |   2 +
+ drivers/mailbox/cvitek-mailbox.c             | 500 +++++++++++++++++++
+ include/dt-bindings/mailbox/cvitek-mailbox.h |  15 +
+ 4 files changed, 525 insertions(+)
+ create mode 100644 drivers/mailbox/cvitek-mailbox.c
+ create mode 100644 include/dt-bindings/mailbox/cvitek-mailbox.h
+
+diff --git a/drivers/mailbox/Kconfig b/drivers/mailbox/Kconfig
+index 05b1009e2820..68803d6845d7 100644
+--- a/drivers/mailbox/Kconfig
++++ b/drivers/mailbox/Kconfig
+@@ -236,6 +236,14 @@ config SUN6I_MSGBOX
+ 	  various Allwinner SoCs. This mailbox is used for communication
+ 	  between the application CPUs and the power management coprocessor.
+ 
++config CVITEK_MAILBOX
++	tristate "CVITEK Mailbox"
++	depends on ARCH_CVITEK
++	help
++	  Mailbox implementation for the hardware message box present in
++	  various CVITEK SoCs. This mailbox is used for communication
++	  between the application CPUs and the power management coprocessor.
++
+ config SPRD_MBOX
+ 	tristate "Spreadtrum Mailbox"
+ 	depends on ARCH_SPRD || COMPILE_TEST
+diff --git a/drivers/mailbox/Makefile b/drivers/mailbox/Makefile
+index 2e06e02b2e03..2a23e3acb1de 100644
+--- a/drivers/mailbox/Makefile
++++ b/drivers/mailbox/Makefile
+@@ -54,3 +54,5 @@ obj-$(CONFIG_SUN6I_MSGBOX)	+= sun6i-msgbox.o
+ obj-$(CONFIG_SPRD_MBOX)		+= sprd-mailbox.o
+ 
+ obj-$(CONFIG_QCOM_IPCC)		+= qcom-ipcc.o
++
++obj-$(CONFIG_CVITEK_MAILBOX) += cvitek-mailbox.o
+\ No newline at end of file
+diff --git a/drivers/mailbox/cvitek-mailbox.c b/drivers/mailbox/cvitek-mailbox.c
+new file mode 100644
+index 000000000000..07d8c91293e5
+--- /dev/null
++++ b/drivers/mailbox/cvitek-mailbox.c
+@@ -0,0 +1,500 @@
++#include <dt-bindings/mailbox/cvitek-mailbox.h>
++#include <linux/bitops.h>
++#include <linux/device.h>
++#include <linux/err.h>
++#include <linux/interrupt.h>
++#include <linux/io.h>
++#include <linux/kernel.h>
++#include <linux/mailbox_controller.h>
++#include <linux/module.h>
++#include <linux/of.h>
++#include <linux/of_irq.h>
++#include <linux/platform_device.h>
++#include <linux/spinlock.h>
++
++#define NUM_CHANS 8
++#define CVITEK_HW_SPINLOCK_REGOFFSET 0x00c0
++
++enum CVITEK_SPINLOCK_FIELD {
++	CVITEK_SPIN_UART,
++	CVITEK_SPIN_LINUX_RTOS =
++		4, // this spinlock field is used for linux & rtos
++	CVITEK_SPIN_MBOX = CVITEK_SPIN_LINUX_RTOS,
++	CVITEK_SPIN_MAX = 7,
++};
++
++#define REG_CPU_MBOX_EN(base, mbox) (base + (0x04 * mbox))
++#define REG_CPU_MBOX_INT(base, mbox) (base + 0x10 + (0x10 * mbox))
++#define REG_CPU_MBOX_INT_CLR(base, mbox) (REG_CPU_MBOX_INT(base, mbox))
++#define REG_CPU_MBOX_INT_MASK(base, mbox) (REG_CPU_MBOX_INT(base, mbox) + 0x04)
++#define REG_CPU_MBOX_INT_INT(base, mbox) (REG_CPU_MBOX_INT(base, mbox) + 0x08)
++#define REG_CPU_MBOX_INT_RAW(base, mbox) (REG_CPU_MBOX_INT(base, mbox) + 0x0c)
++#define REG_CPU_MBOX_STATUS(base, mbox) (base + 0x70 + (0x04 * mbox))
++#define REG_MBOX_SET(base) (base + 0x60)
++#define REG_MBOX_STATUS(base) (base + 0x64)
++
++#define REG_MBOX_CONTEXT(base, mbox) (base + 0x400 + (0x04 * mbox))
++
++struct cvitek_hw_raw_spinlock_t {
++	unsigned short locks;
++	unsigned short hw_field;
++};
++
++struct cvitek_mailbox {
++	struct mbox_controller controller;
++	spinlock_t lock;
++	struct cvitek_hw_raw_spinlock_t hw_lock;
++	void __iomem *regs;
++};
++
++struct cvitek_channel_conf {
++	struct cvitek_mailbox *mbox;
++	unsigned int cpu;
++	unsigned int direction;
++	unsigned int mask;
++};
++
++static unsigned char lockCount[CVITEK_SPIN_MAX + 1] = { 0 };
++
++static bool cvitek_mailbox_lock_init(struct cvitek_mailbox *mbox)
++{
++	mbox->hw_lock.locks = 0;
++	mbox->hw_lock.hw_field = CVITEK_SPIN_MBOX;
++	return true;
++}
++
++static bool cvitek_mailbox_trylock(struct cvitek_mailbox *mbox,
++				   struct cvitek_hw_raw_spinlock_t *lock)
++{
++	writew(lock->locks, (void *)(mbox->regs + CVITEK_HW_SPINLOCK_REGOFFSET +
++				     sizeof(int) * lock->hw_field));
++	if (readw((void *)(mbox->regs + CVITEK_HW_SPINLOCK_REGOFFSET +
++			   sizeof(int) * lock->hw_field)) == lock->locks) {
++		return true;
++	}
++	return false;
++}
++
++static bool cvitek_mailbox_lock(struct cvitek_mailbox *mbox)
++{
++	unsigned long loops = 1000000;
++	unsigned long i;
++	struct cvitek_hw_raw_spinlock_t _lock = {
++		.hw_field = mbox->hw_lock.hw_field, .locks = mbox->hw_lock.locks
++	};
++
++	if (lockCount[mbox->hw_lock.hw_field] == 0) {
++		lockCount[mbox->hw_lock.hw_field]++;
++	}
++	_lock.locks = (lockCount[mbox->hw_lock.hw_field] << 8);
++	lockCount[mbox->hw_lock.hw_field]++;
++
++	for (i = 0; i < loops; i++) {
++		if (cvitek_mailbox_trylock(mbox, &_lock) == true) {
++			mbox->hw_lock.locks = _lock.locks;
++			return true;
++		}
++		cpu_relax();
++	}
++
++	return false;
++}
++
++static bool cvitek_mailbox_unlock(struct cvitek_mailbox *mbox)
++{
++	if (readw((void *)(mbox->regs + CVITEK_HW_SPINLOCK_REGOFFSET +
++			   sizeof(int) * mbox->hw_lock.hw_field)) ==
++	    mbox->hw_lock.locks) {
++		writew(mbox->hw_lock.locks,
++		       (void *)(mbox->regs + CVITEK_HW_SPINLOCK_REGOFFSET +
++				sizeof(int) * mbox->hw_lock.hw_field));
++		return true;
++	}
++	return false;
++}
++
++static inline int channel_number(struct mbox_chan *chan)
++{
++	return chan - chan->mbox->chans;
++}
++
++static inline struct cvitek_channel_conf *
++to_cvitek_channel_conf(struct mbox_chan *chan)
++{
++	return chan->con_priv;
++}
++
++static inline struct cvitek_mailbox *to_cvitek_mailbox(struct mbox_chan *chan)
++{
++	struct cvitek_channel_conf *cmbox = to_cvitek_channel_conf(chan);
++	return cmbox->mbox;
++}
++
++static irqreturn_t cvitek_mailbox_irq(int irq, void *dev_id)
++{
++	struct cvitek_mailbox *mbox = dev_id;
++	//struct mailbox_controller *cntlr = &mbox->controller;
++	uint32_t pending_chans, channel, msg, i;
++
++	dev_dbg(mbox->controller.dev, "IRQ\n");
++
++	pending_chans = readl(REG_CPU_MBOX_INT_INT(mbox->regs, CVITEK_MBOX_C906_0));
++
++	if (pending_chans) {
++		for(i = 0; i < 8; i++) {
++			channel = pending_chans  & (1 << i);
++			if (channel) {
++				msg = readl(REG_MBOX_CONTEXT(mbox->regs, i));
++				/* clear the interupt */
++                writel(channel, REG_CPU_MBOX_INT_CLR(mbox->regs, CVITEK_MBOX_C906_0));
++                /* clear the channel status */
++				writel(readl(REG_CPU_MBOX_EN(mbox->regs, CVITEK_MBOX_C906_0)) & ~channel, REG_CPU_MBOX_EN(mbox->regs, CVITEK_MBOX_C906_0));
++				dev_dbg(mbox->controller.dev, "Channel %d received 0x%08x\n", i, msg);
++				struct mbox_chan *chan = &mbox->controller.chans[i];
++				mbox_chan_received_data(chan, &msg);
++			}
++		}
++	}
++
++
++#if 0
++	uint32_t status;
++	int n;
++
++	/* Only examine channels that are currently enabled. */
++	status = readl(mbox->regs + LOCAL_IRQ_EN_REG) &
++		 readl(mbox->regs + LOCAL_IRQ_STAT_REG);
++
++	if (!(status & RX_IRQ_MASK))
++		return IRQ_NONE;
++
++	for (n = 0; n < NUM_CHANS; ++n) {
++		struct mbox_chan *chan = &mbox->controller.chans[n];
++
++		if (!(status & RX_IRQ(n)))
++			continue;
++
++		while (cvitek_mailbox_peek_data(chan)) {
++			uint32_t msg = readl(mbox->regs + MSG_DATA_REG(n));
++
++			mbox_dbg(mbox, "Channel %d received 0x%08x\n", n, msg);
++			mbox_chan_received_data(chan, &msg);
++		}
++
++		/* The IRQ can be cleared only once the FIFO is empty. */
++		writel(RX_IRQ(n), mbox->regs + LOCAL_IRQ_STAT_REG);
++	}
++#endif
++	return IRQ_HANDLED;
++}
++
++static int cvitek_mailbox_send_data(struct mbox_chan *chan, void *data)
++{
++	struct cvitek_mailbox *mbox = to_cvitek_mailbox(chan);
++	struct cvitek_channel_conf *chan_conf = to_cvitek_channel_conf(chan);
++	uint32_t en;
++	int n = channel_number(chan);
++	uint32_t msg = *(uint32_t *)data;
++
++	dev_dbg(mbox->controller.dev, "Channel %d send data\n", n);
++
++	if (chan_conf->direction != CVITEK_MBOX_DIRECTION_TX) {
++		dev_err(mbox->controller.dev,
++			"Channel %d is not a TX channel %d\n", n,
++			chan_conf->direction);
++		return -EINVAL;
++	}
++
++	if (!cvitek_mailbox_lock(mbox)) {
++		dev_err(mbox->controller.dev, "Failed to lock mailbox\n");
++		return -EAGAIN;
++	}
++
++	// int_clr
++	//writel(1 << 1, mbox->regs + 0x30);
++	// mbox_en
++	//writel(1 << 1, mbox->regs + 0x08);
++	// mbox set
++	//writel(1 << 1, mbox->regs + 0x60);
++
++	/* set context */
++	dev_dbg(mbox->controller.dev, "n %d channel %d", n, chan_conf->cpu);
++	dev_dbg(mbox->controller.dev, "ctx %px 1 %px 2 %px 3 %px", REG_MBOX_CONTEXT(mbox->regs, n), REG_CPU_MBOX_INT_CLR(mbox->regs, chan_conf->cpu), REG_CPU_MBOX_EN(mbox->regs, chan_conf->cpu),  REG_MBOX_SET(mbox->regs) );
++	dev_dbg(mbox->controller.dev, "1 %px 2 %px 3 %px", mbox->regs + 0x30, mbox->regs + 0x08, mbox->regs + 0x60);
++	dev_dbg(mbox->controller.dev, "1 %px", mbox->regs);
++
++	writel(msg, REG_MBOX_CONTEXT(mbox->regs, n));
++	// int_clr
++	writel(1 << n, REG_CPU_MBOX_INT_CLR(mbox->regs, chan_conf->cpu));
++	// mbox_en
++	en = readl(REG_CPU_MBOX_EN(mbox->regs, chan_conf->cpu));
++	en |= 1 << n;
++	writel(en, REG_CPU_MBOX_EN(mbox->regs, chan_conf->cpu));
++	// mbox set
++	writel(1 << n, REG_MBOX_SET(mbox->regs));
++
++	if (!cvitek_mailbox_unlock(mbox)) {
++		dev_err(mbox->controller.dev, "Failed to unlock mailbox\n");
++		return -EINVAL;
++	}
++
++	dev_dbg(mbox->controller.dev, "Channel %d sent 0x%08x to %d\n", n, msg,
++		chan_conf->cpu);
++
++#if 0
++	/* Using a channel backwards gets the hardware into a bad state. */
++	if (WARN_ON_ONCE(!(readl(mbox->regs + CTRL_REG(n)) & CTRL_TX(n))))
++		return 0;
++
++	writel(msg, mbox->regs + MSG_DATA_REG(n));
++	mbox_dbg(mbox, "Channel %d sent 0x%08x\n", n, msg);
++#endif
++	return 0;
++}
++
++static int cvitek_mailbox_startup(struct mbox_chan *chan)
++{
++	struct cvitek_mailbox *mbox = to_cvitek_mailbox(chan);
++	struct cvitek_channel_conf *chan_conf = to_cvitek_channel_conf(chan);
++	int n = channel_number(chan);
++	uint32_t en;
++	dev_dbg(mbox->controller.dev, "Channel %d startup\n", n);
++
++	/* clear the channel, if it has anything pending */
++	writel(1 << n, REG_CPU_MBOX_INT_CLR(mbox->regs, chan_conf->cpu));
++	en = readl(REG_CPU_MBOX_EN(mbox->regs, chan_conf->cpu));
++	en |= 0 << n;
++	writel(en, REG_CPU_MBOX_EN(mbox->regs, chan_conf->cpu));
++	writel(0 << n, REG_MBOX_SET(mbox->regs));
++#if 0
++	/* The coprocessor is responsible for setting channel directions. */
++	if (readl(mbox->regs + CTRL_REG(n)) & CTRL_RX(n)) {
++		/* Flush the receive FIFO. */
++		while (cvitek_mailbox_peek_data(chan))
++			readl(mbox->regs + MSG_DATA_REG(n));
++		writel(RX_IRQ(n), mbox->regs + LOCAL_IRQ_STAT_REG);
++
++		/* Enable the receive IRQ. */
++		spin_lock(&mbox->lock);
++		writel(readl(mbox->regs + LOCAL_IRQ_EN_REG) | RX_IRQ(n),
++		       mbox->regs + LOCAL_IRQ_EN_REG);
++		spin_unlock(&mbox->lock);
++	}
++
++	mbox_dbg(mbox, "Channel %d startup complete\n", n);
++#endif
++	return 0;
++}
++
++static void cvitek_mailbox_shutdown(struct mbox_chan *chan)
++{
++	struct cvitek_mailbox *mbox = to_cvitek_mailbox(chan);
++	int n = channel_number(chan);
++	dev_dbg(mbox->controller.dev, "Channel %d shutdown\n", n);
++#if 0
++	if (readl(mbox->regs + CTRL_REG(n)) & CTRL_RX(n)) {
++		/* Disable the receive IRQ. */
++		spin_lock(&mbox->lock);
++		writel(readl(mbox->regs + LOCAL_IRQ_EN_REG) & ~RX_IRQ(n),
++		       mbox->regs + LOCAL_IRQ_EN_REG);
++		spin_unlock(&mbox->lock);
++
++		/* Attempt to flush the FIFO until the IRQ is cleared. */
++		do {
++			while (cvitek_mailbox_peek_data(chan))
++				readl(mbox->regs + MSG_DATA_REG(n));
++			writel(RX_IRQ(n), mbox->regs + LOCAL_IRQ_STAT_REG);
++		} while (readl(mbox->regs + LOCAL_IRQ_STAT_REG) & RX_IRQ(n));
++	}
++	mbox_dbg(mbox, "Channel %d shutdown complete\n", n);
++#endif
++}
++
++static bool cvitek_mailbox_last_tx_done(struct mbox_chan *chan)
++{
++	struct cvitek_mailbox *mbox = to_cvitek_mailbox(chan);
++	struct cvitek_channel_conf *chan_conf = to_cvitek_channel_conf(chan);
++	int n = channel_number(chan);
++	dev_dbg(mbox->controller.dev, "CPU %d, Channel %d - Last TX done %x\n", chan_conf->cpu, n, readl(REG_MBOX_STATUS(mbox->regs) ));
++
++	if (!(readl(REG_MBOX_STATUS(mbox->regs)) & (1 << n))) {
++		return true;
++	}
++
++	return false;
++}
++
++static bool cvitek_mailbox_peek_data(struct mbox_chan *chan)
++{
++	struct cvitek_mailbox *mbox = to_cvitek_mailbox(chan);
++	dev_dbg(mbox->controller.dev, "Peek data\n");
++	if (!cvitek_mailbox_lock(mbox)) {
++		dev_err(mbox->controller.dev, "Failed to lock mailbox\n");
++		return false;
++	}
++
++	if (!cvitek_mailbox_unlock(mbox)) {
++		dev_err(mbox->controller.dev, "Failed to unlock mailbox\n");
++		return false;
++	}
++
++	return false;
++}
++
++static const struct mbox_chan_ops cvitek_mailbox_chan_ops = {
++	.send_data = cvitek_mailbox_send_data,
++	.startup = cvitek_mailbox_startup,
++	.shutdown = cvitek_mailbox_shutdown,
++	.last_tx_done = cvitek_mailbox_last_tx_done,
++	.peek_data = cvitek_mailbox_peek_data,
++};
++
++static struct mbox_chan *cvitek_mbox_of_xlate(struct mbox_controller *cntlr,
++					      const struct of_phandle_args *pa)
++{
++	struct mbox_chan *chan;
++	struct cvitek_channel_conf *chan_conf;
++	dev_info(cntlr->dev, "phandle args count: %d\n", pa->args_count);
++	if (pa->args_count < 4) {
++		dev_err(cntlr->dev, "Invalid phandle args count: %d\n",
++			pa->args_count);
++		return ERR_PTR(-EINVAL);
++	}
++
++	if (pa->args[0] >= cntlr->num_chans) {
++		dev_err(cntlr->dev, "Invalid channel number: %d\n",
++			pa->args[0]);
++		return ERR_PTR(-ENOENT);
++	}
++
++	if (pa->args[1] == 0 || pa->args[1] > CVITEK_MBOX_DIRECTION_TX) {
++		dev_err(cntlr->dev, "Invalid direction: %d\n", pa->args[1]);
++		return ERR_PTR(-EINVAL);
++	}
++
++	if (pa->args[2] == 0 || pa->args[2] > CVITEK_MBOX_C906_1) {
++		dev_err(cntlr->dev, "Invalid CPU: %d\n", pa->args[2]);
++		return ERR_PTR(-EINVAL);
++	}
++
++	chan = &cntlr->chans[pa->args[0]];
++	chan_conf = to_cvitek_channel_conf(chan);
++	chan_conf->direction = pa->args[1];
++	chan_conf->cpu = pa->args[2];
++	chan_conf->mask = pa->args[3];
++	dev_info(cntlr->dev, "Channel %d: direction %d, cpu %d, mask %d\n",
++		 pa->args[0], chan_conf->direction, chan_conf->cpu,
++		 chan_conf->mask);
++	return chan;
++}
++
++static int cvitek_mailbox_probe(struct platform_device *pdev)
++{
++	struct device *dev = &pdev->dev;
++	struct mbox_chan *chans;
++	struct resource *res;
++	struct cvitek_mailbox *mbox;
++	struct cvitek_channel_conf *chan_conf;
++	int i, ret;
++
++	dev_info(dev, "CVITEK mailbox probe\n");
++
++	mbox = devm_kzalloc(dev, sizeof(*mbox), GFP_KERNEL);
++	if (!mbox)
++		return -ENOMEM;
++
++	if (!cvitek_mailbox_lock_init(mbox)) {
++		dev_err(dev, "Failed to initialize mailbox lock\n");
++		return -ENOMEM;
++	}
++
++	chans = devm_kcalloc(dev, NUM_CHANS, sizeof(*chans), GFP_KERNEL);
++	if (!chans)
++		return -ENOMEM;
++
++	for (i = 0; i < NUM_CHANS; ++i) {
++		chan_conf =
++			devm_kcalloc(dev, 1, sizeof(*chan_conf), GFP_KERNEL);
++		chan_conf->mbox = mbox;
++		chans[i].con_priv = chan_conf;
++	}
++	dev_dbg(dev, "Allocated %d channels\n", i);
++
++	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
++	if (!res) {
++		ret = -ENODEV;
++		goto err_disable_unprepare;
++	}
++
++	mbox->regs = devm_ioremap_resource(&pdev->dev, res);
++	if (IS_ERR(mbox->regs)) {
++		ret = PTR_ERR(mbox->regs);
++		dev_err(dev, "Failed to map MMIO resource: %d\n", ret);
++		goto err_disable_unprepare;
++	}
++
++	/* Disable all IRQs for this end of the mailbox. */
++	//writel(0, mbox->regs + LOCAL_IRQ_EN_REG);
++
++	ret = devm_request_irq(dev, irq_of_parse_and_map(dev->of_node, 0),
++			       cvitek_mailbox_irq, 0, dev_name(dev), mbox);
++	if (ret) {
++		dev_err(dev, "Failed to register IRQ handler: %d\n", ret);
++		goto err_disable_unprepare;
++	}
++
++	mbox->controller.dev = dev;
++	mbox->controller.ops = &cvitek_mailbox_chan_ops;
++	mbox->controller.chans = chans;
++	mbox->controller.num_chans = NUM_CHANS;
++	mbox->controller.txdone_irq = false;
++	mbox->controller.txdone_poll = true;
++	mbox->controller.txpoll_period = 1000;
++	mbox->controller.of_xlate = cvitek_mbox_of_xlate;
++
++	spin_lock_init(&mbox->lock);
++	platform_set_drvdata(pdev, mbox);
++
++	ret = mbox_controller_register(&mbox->controller);
++	if (ret) {
++		dev_err(dev, "Failed to register controller: %d\n", ret);
++		goto err_disable_unprepare;
++	}
++	dev_dbg(dev, "Registered mailbox controller\n");
++	return 0;
++
++err_disable_unprepare:
++
++	return ret;
++}
++
++static int cvitek_mailbox_remove(struct platform_device *pdev)
++{
++	struct cvitek_mailbox *mbox = platform_get_drvdata(pdev);
++
++	mbox_controller_unregister(&mbox->controller);
++
++	return 0;
++}
++
++static const struct of_device_id cvitek_mailbox_of_match[] = {
++	{
++		.compatible = "cvitek,sg200x-mailbox",
++	},
++	{},
++};
++MODULE_DEVICE_TABLE(of, cvitek_mailbox_of_match);
++
++static struct platform_driver cvitek_mailbox_driver = {
++	.driver = {
++		.name = "cvitek-mailbox",
++		.of_match_table = cvitek_mailbox_of_match,
++	},
++	.probe  = cvitek_mailbox_probe,
++	.remove = cvitek_mailbox_remove,
++};
++module_platform_driver(cvitek_mailbox_driver);
++
++MODULE_AUTHOR("Justin Hammond <justin@dynam.ac>");
++MODULE_DESCRIPTION("CVITEK SG200x Mailbox");
++MODULE_LICENSE("GPL v2");
+\ No newline at end of file
+diff --git a/include/dt-bindings/mailbox/cvitek-mailbox.h b/include/dt-bindings/mailbox/cvitek-mailbox.h
+new file mode 100644
+index 000000000000..f66afc0b3bcd
+--- /dev/null
++++ b/include/dt-bindings/mailbox/cvitek-mailbox.h
+@@ -0,0 +1,15 @@
++/* SPDX-License-Identifier: GPL-2.0 OR BSD-2-Clause */
++/*
++ * Copyright (c) 2018-2020, The Linux Foundation. All rights reserved.
++ */
++
++#ifndef __DT_BINDINGS_MAILBOX_IPCC_H
++#define __DT_BINDINGS_MAILBOX_IPCC_H
++
++#define CVITEK_MBOX_DIRECTION_RX 1
++#define	CVITEK_MBOX_DIRECTION_TX 2
++
++#define	CVITEK_MBOX_C906_0 1
++#define	CVITEK_MBOX_C906_1 2
++
++#endif
+-- 
+2.44.0
+

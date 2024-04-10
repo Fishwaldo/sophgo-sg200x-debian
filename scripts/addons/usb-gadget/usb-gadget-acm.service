@@ -1,0 +1,14 @@
+[Unit]
+Description=ACM USB Gadget Support
+After=network.target
+Before=usb-gadget.service
+Conflicts=usb-gadget-rndis.service
+StartLimitIntervalSec=0
+
+[Service]
+Type=oneshot
+ExecStart=/bin/bash -c "/bin/echo device > /proc/cviusb/otg_role"
+ExecStart=sh /usr/sbin/run_usb.sh probe acm
+
+[Install]
+WantedBy=multi-user.target

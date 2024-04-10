@@ -1,0 +1,78 @@
+From e1df28259ed82f46dc9059eae86bc26a3b4a2c4d Mon Sep 17 00:00:00 2001
+From: Justin Hammond <justin@dynam.ac>
+Date: Sat, 6 Apr 2024 14:29:47 +0800
+Subject: [PATCH 2/4] Add Reset for C906L, ignore clock status for C906L, and
+ Fix up reserved memory name size (in preperation for remoteproc driver)
+
+---
+ drivers/clk/cvitek/clk-cv181x.c           | 2 +-
+ drivers/of/of_reserved_mem.c              | 4 ++--
+ include/dt-bindings/reset/cv181x-resets.h | 3 +++
+ include/linux/of_reserved_mem.h           | 2 +-
+ 4 files changed, 7 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/clk/cvitek/clk-cv181x.c b/drivers/clk/cvitek/clk-cv181x.c
+index 561fb1fcb832..3afce30df616 100644
+--- a/drivers/clk/cvitek/clk-cv181x.c
++++ b/drivers/clk/cvitek/clk-cv181x.c
+@@ -1645,7 +1645,7 @@ static struct cv181x_hw_clock cv181x_clks[] = {
+ 		REG_CLK_BYP_1, 7,
+ 		REG_CLK_SEL_0, 24,
+ 		REG_DIV_CLK_C906_1_0, 8,
+-		CLK_IS_CRITICAL),
++		CLK_IGNORE_UNUSED),
+ 	CV181X_CLK(CV181X_CLK_SRC_VIP_SYS_3, "clk_src_vip_sys_3",
+ 		((const char *[]) {"osc", "clk_mipimpll", "clk_cam0pll", "clk_disppll", "clk_fpll"}),
+ 		REG_CLK_EN_4, 15,
+diff --git a/drivers/of/of_reserved_mem.c b/drivers/of/of_reserved_mem.c
+index 8093bbbe875c..1336c2d23bd6 100644
+--- a/drivers/of/of_reserved_mem.c
++++ b/drivers/of/of_reserved_mem.c
+@@ -22,7 +22,7 @@
+ #include <linux/slab.h>
+ #include <linux/memblock.h>
+ 
+-#define MAX_RESERVED_REGIONS	4
++#define MAX_RESERVED_REGIONS	64
+ 
+ #if defined(CONFIG_ARCH_CVITEK)
+ struct reserved_mem_size_entry {
+@@ -69,7 +69,7 @@ void __init fdt_reserved_mem_save_node(unsigned long node, const char *uname,
+ 	}
+ 
+ 	rmem->fdt_node = node;
+-	strncpy(rmem->name, uname, 8);
++	strncpy(rmem->name, uname, 16);
+ 	rmem->base = base;
+ 	rmem->size = size;
+ 
+diff --git a/include/dt-bindings/reset/cv181x-resets.h b/include/dt-bindings/reset/cv181x-resets.h
+index e10d33b35446..c89f79418df4 100644
+--- a/include/dt-bindings/reset/cv181x-resets.h
++++ b/include/dt-bindings/reset/cv181x-resets.h
+@@ -114,6 +114,9 @@
+ #define RST_AUTO_CLEAR_MAINRST_AP	103
+ #define RST_AUTO_CLEAR_SECONDRST_AP	104
+ 
++#define RST_C906_0    293
++#define RST_C906_1    294
++
+ #define CLK_RST_A53		0
+ #define CLK_RST_50M_A53		1
+ #define CLK_RST_AHB_ROM		2
+diff --git a/include/linux/of_reserved_mem.h b/include/linux/of_reserved_mem.h
+index e418313a5085..5ac862bbea7b 100644
+--- a/include/linux/of_reserved_mem.h
++++ b/include/linux/of_reserved_mem.h
+@@ -9,7 +9,7 @@ struct of_phandle_args;
+ struct reserved_mem_ops;
+ 
+ struct reserved_mem {
+-	char				name[8];
++	char				name[16];
+ 	unsigned long			fdt_node;
+ 	unsigned long			phandle;
+ 	const struct reserved_mem_ops	*ops;
+-- 
+2.44.0
+
