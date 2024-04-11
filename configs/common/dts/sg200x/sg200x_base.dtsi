@@ -108,7 +108,7 @@
 		clocks = <&clk CV181X_CLK_RTC_25M>;
 		clock-names = "clk_rtc";
 	};
-
+#if (CVIMMAP_ION_SIZE > 0)	
 	cvitek-ion {
 		compatible = "cvitek,cvitek-ion";
 
@@ -117,7 +117,7 @@
 			memory-region = <&ion_reserved>;
 		};
 	};
-
+#endif
 	sysdma_remap {
 		compatible = "cvitek,sysdma_remap";
 		reg = <0x0 0x03000154 0x0 0x10>;
@@ -653,7 +653,7 @@
 		cvi,card_name = "cv182x_internal_PDM";
 	};
 
-	wifi_pin {
+	wifi_pin: wifi_pin {
 		compatible = "cvitek,wifi-pin";
 		poweron-gpio = <&porta 18 GPIO_ACTIVE_HIGH>;
 		wakeup-gpio = <&porte 7 GPIO_ACTIVE_HIGH>;
@@ -737,7 +737,7 @@
 		reg-names = "ive_base";
 	};
 
-	cvi_vo: vo {
+	vo {
 		compatible = "cvitek,vo";
 		reg = <0x0 0x0a080000 0x0 0x10000>, <0x0 0x0a0c8000 0x0 0xa0>, <0x0 0x0a0d1000 0x0 0x100>;
 		reg-names = "sc", "vip_sys", "dphy";
@@ -760,7 +760,7 @@
 		};
 	};
 
-	cvi_fb: cvifb {
+	cvifb {
 		compatible = "cvitek,fb";
 		memory-region = <&fb_reserved>;
 		reg = <0x0 0x0a088000 0x0 0x1000>;
@@ -844,7 +844,7 @@
 				<&clk CV181X_CLK_33K_USB>,
 				<&clk CV181X_CLK_12M_USB>;
 		clock-names = "clk_axi", "clk_apb", "clk_125m", "clk_33k", "clk_12m";
-		vbus-gpio = <&portb 6 0>;
+		//vbus-gpio = <&portb 6 0>;
 		status = "okay";
 	};
 

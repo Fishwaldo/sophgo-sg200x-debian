@@ -6,7 +6,7 @@ on:
     branches:
       - '*'
   workflow_dispatch:
-
+  
 jobs:
   build-docker-image:
     runs-on: ubuntu-latest 
@@ -53,7 +53,7 @@ jobs:
   build-image:
     strategy:
       matrix:
-        boards: [licheervnano]
+        boards: [licheervnano, duo256]
     runs-on: ubuntu-latest
     needs: build-docker-image
     steps:

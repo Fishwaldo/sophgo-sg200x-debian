@@ -19,7 +19,7 @@
 /memreserve/	CVIMMAP_MONITOR_ADDR CVIMMAP_OPENSBI_SIZE; // OpenSBI
 #endif
 
-#include "soph_base.dtsi"
+#include "sg200x_base.dtsi"
 
 / {
 	model = "SOPHGO ASIC. C906.";

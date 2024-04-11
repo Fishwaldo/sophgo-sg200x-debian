@@ -303,6 +303,7 @@ index 000000000000..bcf6b1b71a64
 +
 +static const struct of_device_id cooling_match[] = {
 +	{.compatible = "sophgo,cooling"},
++   {.compatible = "cvitek,cv181x-cooling"},
 +	{},
 +};
 +MODULE_DEVICE_TABLE(of, cooling_match);

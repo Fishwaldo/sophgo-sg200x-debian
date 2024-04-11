@@ -12,10 +12,6 @@
 	power-ct-gpio = <&porta 19 GPIO_ACTIVE_HIGH>;
 };
 
-&dac{
-	mute-gpio-r = <&porte 1 GPIO_ACTIVE_LOW>;
-};
-
 &spi0 {
 	status = "disabled";
 	num-cs = <1>;

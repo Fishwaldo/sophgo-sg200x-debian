@@ -1,0 +1,79 @@
+/dts-v1/;
+#include "cv181x_base_riscv.dtsi"
+#include "cv181x_asic_qfn.dtsi"
+#include "cv181x_asic_sd.dtsi"
+#include "cv181x_default_memmap.dtsi"
+
+#include "dt-bindings/leds/common.h"
+#ifndef __UBOOT__
+#include <dt-bindings/mailbox/cvitek-mailbox.h>
+#endif
+
+
+&mipi_rx{
+	snsr-reset = <&portc 17 GPIO_ACTIVE_LOW>, <&portc 17 GPIO_ACTIVE_LOW>, <&portc 17 GPIO_ACTIVE_LOW>;
+};
+
+&mipi_tx {
+	/delete-property/ reset-gpio;
+	/delete-property/ pwm-gpio;
+	/delete-property/ power-ct-gpio;
+};
+
+&spi2 {
+	status = "okay";
+
+	spidev@0 {
+		status = "okay";
+	};
+};
+
+&i2c0 {
+	status = "disabled";
+};
+
+&i2c4 {
+	status = "disabled";
+};
+
+/ {
+	model = "Milk-V Duo256M";
+
+	/delete-node/ wifi_pin;
+	/delete-node/ bt_pin;
+	
+	leds {
+		compatible = "gpio-leds";
+		led0 {
+			gpios = <&porte 2 GPIO_ACTIVE_LOW>;
+			linux,default-trigger = "heartbeat";
+			function = LED_FUNCTION_HEARTBEAT;
+		};
+	};
+#ifndef __UBOOT__        
+	mbox: mbox@0x01900000 {
+		compatible = "cvitek,sg200x-mailbox";
+		reg = <0x0 0x01900000 0x0 0x1000>;
+		reg-names = "mailbox";
+		interrupts	= <101 IRQ_TYPE_LEVEL_HIGH>;
+		interrupt-parent = <&plic0>;
+		status = "okay";
+		#mbox-cells = <4>;
+	};
+
+	cv181x-c906_1 {
+		compatible	= "cvitek,cv181x-c906_1";
+		memory-region	= <&fast_image &vdev0vring0 &vdev0vring1 &vdev0buffer>;
+        firmware        = "c906-mcu.elf";
+        resets		= <&rst RST_C906_1>;
+		reset-names	= "sw_reset";
+        clocks		= <&clk CV181X_CLK_C906_1>;
+		clock-names     = "clk_c906_1";
+		mboxes		= <&mbox 0 CVITEK_MBOX_DIRECTION_TX CVITEK_MBOX_C906_1 1>, <&mbox 1 CVITEK_MBOX_DIRECTION_RX CVITEK_MBOX_C906_1 1>;
+		mbox-names	= "vq_tx", "vq_rx";
+		status		= "okay";
+	};
+#endif
+
+};
+

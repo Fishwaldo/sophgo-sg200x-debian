@@ -57,7 +57,7 @@ int cvi_board_init(void)
         mmio_write_32(0x030010E4, 0x0); // CLK
 
         // LED 
-        mmio_write_32(0x03001038, 0x3); // GPIOA 8 GPIO_MODE
+        mmio_write_32(0x03001038, 0x3); // SD0_PWR_EN/XGPIOA_14
 
         // uart bluetooth
         //mmio_write_32(0x03001070, 0x1); // GPIOA 28 UART1 TX

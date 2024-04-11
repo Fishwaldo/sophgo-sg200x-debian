@@ -1,8 +1,8 @@
 /dts-v1/;
-#include "soph_base_riscv.dtsi"
-#include "soph_asic_qfn.dtsi"
-#include "soph_asic_sd.dtsi"
-#include "soph_default_memmap.dtsi"
+#include "sg200x_base_riscv.dtsi"
+#include "sg200x_asic_qfn.dtsi"
+#include "sg200x_asic_sd.dtsi"
+#include "sg200x_default_memmap.dtsi"
 
 #include <dt-bindings/input/linux-event-codes.h>
 #include <dt-bindings/gpio/gpio.h>

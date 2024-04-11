@@ -108,7 +108,7 @@
 		clocks = <&clk CV181X_CLK_RTC_25M>;
 		clock-names = "clk_rtc";
 	};
-
+#if (CVIMMAP_ION_SIZE > 0)	
 	cvitek-ion {
 		compatible = "cvitek,cvitek-ion";
 
@@ -117,7 +117,7 @@
 			memory-region = <&ion_reserved>;
 		};
 	};
-
+#endif
 	sysdma_remap {
 		compatible = "cvitek,sysdma_remap";
 		reg = <0x0 0x03000154 0x0 0x10>;
