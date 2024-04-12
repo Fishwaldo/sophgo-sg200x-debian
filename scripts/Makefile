@@ -192,15 +192,21 @@ fsbl-clean:
 
 $(BUILDDIR)/image-prepare-stamp: 
 	@echo "$(COLOUR_GREEN)Preparing Image for $(BOARD)$(END_COLOUR)"
-	@mkdir $(BUILDDIR)
+	@-mkdir $(BUILDDIR)
 	@rm -rf /rootfs/
 	@-rm $(addon-targets)
 	@mkdir -p /rootfs/
-	@mmdebstrap -v --architectures=riscv64 --include="$(_PACKAGES)" sid "/rootfs/" "deb http://deb.debian.org/debian/ sid main"
+	@curl -s https://sophgo.my-ho.st:8443/public-key.asc -o $(BUILDDIR)/public-key.asc
+	@apt-key add $(BUILDDIR)/public-key.asc
+	@mmdebstrap -v --architectures=riscv64 --include="$(_PACKAGES)" sid "/rootfs/" "deb http://deb.debian.org/debian/ sid main" "deb https://sophgo.my-ho.st:8443/ debian sophgo"
 	@touch $@
 
-$(BUILDDIR)/image-addons-stamp: $(BUILDDIR)/image-prepare-stamp $(addon-targets)
-	@echo "$(COLOUR_GREEN)Image Addons Complete for $(BOARD)$(END_COLOUR)"
+$(BUILDDIR)/image-addons-stamp: $(BUILDDIR)/image-prepare-stamp $(addon-targets) $(BUILDDIR)/fsbl-package-stamp $(BUILDDIR)/linux-compile-stamp
+	@echo "$(COLOUR_GREEN)Copying Deb files for installation on $(BOARD)$(END_COLOUR)"
+	@cp /output/cvitek-fsbl-$(BOARD)-*.deb /rootfs/tmp/install/
+	@cp /output/linux-image-$(BOARD)-*.deb /rootfs/tmp/install/
+	@cp /output/linux-headers-*.deb /rootfs/tmp/install/
+	@cp /output/linux-libc-dev*.deb /rootfs/tmp/install/
 	@touch $@
 
 
@@ -209,10 +215,9 @@ $(BUILDDIR)/image-customize-stamp: $(BUILDDIR)/image-addons-stamp $(BUILDDIR)/li
 	@mkdir -p /rootfs/tmp/install/
 	@echo $(BOARD) > /rootfs/tmp/install/hostname
 	@echo $(BOARD) > /rootfs/tmp/install/board
-	@mkdir -p /rootfs/tmp/install
 	@cp -v /usr/bin/qemu-riscv64-static /rootfs/tmp/install/
 	@cp -v /builder/setup_rootfs.sh /rootfs/tmp/install/
-	@cp -v /output/*.deb /rootfs/tmp/install/
+	@cp -v $(BUILDDIR)/public-key.asc /rootfs/tmp/install/
 	chroot /rootfs/ /tmp/install/qemu-riscv64-static /bin/sh /tmp/install/setup_rootfs.sh
 	@rm -rf /rootfs/tmp/install/
 	@umount /rootfs/proc || true 

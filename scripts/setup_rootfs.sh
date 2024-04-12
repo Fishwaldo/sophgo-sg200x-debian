@@ -124,8 +124,11 @@ fi
 
 rm -rf /etc/apt/sources.list.d/multistrap-debian.list
 
+apt-key add /tmp/install/public-key.asc
+
 cat > /etc/apt/sources.list <<EOF
 deb http://deb.debian.org/debian sid main non-free-firmware
+deb https://sophgo.my-ho.st:8443/ debian sophgo
 EOF
 
 #

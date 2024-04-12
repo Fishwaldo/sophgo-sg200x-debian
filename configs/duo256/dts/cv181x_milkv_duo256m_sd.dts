@@ -36,6 +36,19 @@
 	status = "disabled";
 };
 
+&soc_thermal_0 {
+	cooling-maps {
+		map0 {
+			trip = <&soc_thermal_trip_0>;
+			cooling-device = <&cv181x_cooling THERMAL_NO_LIMIT 1>;
+		};
+		map1 {
+			trip = <&soc_thermal_trip_1>;
+			cooling-device = <&cv181x_cooling THERMAL_NO_LIMIT THERMAL_NO_LIMIT>;
+		};
+	};
+};
+
 / {
 	model = "Milk-V Duo256M";
 

@@ -1,13 +1,13 @@
-From 1d4f23538a75fd635ec284967f7bb45ac98e9f98 Mon Sep 17 00:00:00 2001
+From 3906608b67bc4074e19abc87b617939325a12483 Mon Sep 17 00:00:00 2001
 From: Justin Hammond <justin@dynam.ac>
-Date: Wed, 10 Apr 2024 17:34:57 +0800
-Subject: [PATCH] add cooling driver
+Date: Fri, 12 Apr 2024 17:49:29 +0800
+Subject: [PATCH] Add cvitek-cooling driver
 
 ---
  drivers/thermal/Kconfig          |   6 +
  drivers/thermal/Makefile         |   1 +
- drivers/thermal/cv181x_cooling.c | 278 +++++++++++++++++++++++++++++++
- 3 files changed, 285 insertions(+)
+ drivers/thermal/cv181x_cooling.c | 279 +++++++++++++++++++++++++++++++
+ 3 files changed, 286 insertions(+)
  create mode 100644 drivers/thermal/cv181x_cooling.c
 
 diff --git a/drivers/thermal/Kconfig b/drivers/thermal/Kconfig
@@ -39,10 +39,10 @@ index e35f57cc2000..6ef07777fa55 100644
 \ No newline at end of file
 diff --git a/drivers/thermal/cv181x_cooling.c b/drivers/thermal/cv181x_cooling.c
 new file mode 100644
-index 000000000000..bcf6b1b71a64
+index 000000000000..fdfd396ca3d4
 --- /dev/null
 +++ b/drivers/thermal/cv181x_cooling.c
-@@ -0,0 +1,278 @@
+@@ -0,0 +1,279 @@
 +#include <linux/err.h>
 +#include <linux/module.h>
 +#include <linux/of.h>
@@ -138,23 +138,23 @@ index 000000000000..bcf6b1b71a64
 +{
 +	struct cooling_device *cvcdev = cdev->devdata;
 +
-+	dev_info(&cdev->device, "set cur_state=%ld\n", state);
-+	dev_info(&cdev->device, "clk_cpu=%ld Hz\n", clk_get_rate(cvcdev->clk_cpu));
-+	dev_info(&cdev->device, "clk_tpu_axi=%ld Hz\n", clk_get_rate(cvcdev->clk_tpu));
++	dev_dbg(&cdev->device, "set cur_state=%ld\n", state);
++	dev_dbg(&cdev->device, "clk_cpu=%ld Hz\n", clk_get_rate(cvcdev->clk_cpu));
++	dev_dbg(&cdev->device, "clk_tpu_axi=%ld Hz\n", clk_get_rate(cvcdev->clk_tpu));
 +
 +	mutex_lock(&cvcdev->lock);
 +
 +	if (state <= cvcdev->max_clk_state && state != cvcdev->clk_state) {
-+		dev_info(&cdev->device, "dev_freq[%ld].cpu_freq=%ld\n", state, cvcdev->dev_freqs[state].cpu_freq);
-+		dev_info(&cdev->device, "dev_freq[%ld].tpu_freq=%ld\n", state, cvcdev->dev_freqs[state].tpu_freq);
++		dev_dbg(&cdev->device, "dev_freq[%ld].cpu_freq=%ld\n", state, cvcdev->dev_freqs[state].cpu_freq);
++		dev_dbg(&cdev->device, "dev_freq[%ld].tpu_freq=%ld\n", state, cvcdev->dev_freqs[state].tpu_freq);
 +
 +		if (cvcdev->dev_freqs[state].cpu_freq != clk_get_rate(cvcdev->clk_cpu)) {
-+			dev_info(&cdev->device, "set cpu freq=%ld\n", cvcdev->dev_freqs[state].cpu_freq);
++			dev_dbg(&cdev->device, "set cpu freq=%ld\n", cvcdev->dev_freqs[state].cpu_freq);
 +			clk_set_rate(cvcdev->clk_cpu, cvcdev->dev_freqs[state].cpu_freq);
 +		}
 +
 +		if (cvcdev->dev_freqs[state].tpu_freq != clk_get_rate(cvcdev->clk_tpu)) {
-+			dev_info(&cdev->device, "set tpu freq=%ld\n", cvcdev->dev_freqs[state].tpu_freq);
++			dev_dbg(&cdev->device, "set tpu freq=%ld\n", cvcdev->dev_freqs[state].tpu_freq);
 +			clk_set_rate(cvcdev->clk_tpu, cvcdev->dev_freqs[state].tpu_freq);
 +		}
 +
@@ -303,7 +303,7 @@ index 000000000000..bcf6b1b71a64
 +
 +static const struct of_device_id cooling_match[] = {
 +	{.compatible = "sophgo,cooling"},
-+   {.compatible = "cvitek,cv181x-cooling"},
++	{.compatible = "cvitek,cv181x-cooling"},
 +	{},
 +};
 +MODULE_DEVICE_TABLE(of, cooling_match);

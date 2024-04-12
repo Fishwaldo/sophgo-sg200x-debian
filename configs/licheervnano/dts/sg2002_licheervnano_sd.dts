@@ -11,22 +11,6 @@
 #include <dt-bindings/mailbox/cvitek-mailbox.h>
 #endif
 
-&i2c0 {
-        status = "disabled";
-        /delete-property/ scl-pinmux;
-        /delete-property/ sda-pinmux;
-        /delete-property/ scl-gpios;
-        /delete-property/ sda-gpios;
-};
-
-&i2c1 {
-        status = "disabled";
-        /delete-property/ scl-pinmux;
-        /delete-property/ sda-pinmux;
-        /delete-property/ scl-gpios;
-        /delete-property/ sda-gpios;
-};
-
 &sd {
         min-frequency = <400000>; // 400Khz
         //max-frequency = <50000000>; // 50Mhz
@@ -35,55 +19,11 @@
         //max-frequency = <5000000>; // 5Mhz
 };
 
-&cvi_vo {
-        reset-gpio = <&porte 0 1>;
-        pwm-gpio = <&portb 0 1>;
-        /delete-property/ power-ct-gpio;
-        status = "okay";
-};
-
-&mipi_tx {
-        reset-gpio = <&porte 0 1>;
-        pwm-gpio = <&porte 0 1>;
-        /delete-property/ power-ct-gpio;
-        status = "okay";
-};
 
 &uart1 {
         status = "okay";
 };
-&uart2 {
-        status = "okay";
-};
 
-
-&pwm0 {
-        status = "okay";
-};
-
-&pwm1 {
-      status = "okay";
-};
-
-&pwm2 {
-      status = "okay";
-};
-
-&i2c2 {
-        status = "disabled";
-        /delete-property/ scl-pinmux;
-        /delete-property/ sda-pinmux;
-        /delete-property/ scl-gpios;
-        /delete-property/ sda-gpios;
-};
-
-&i2c3 {
-        status = "disabled";
-        /delete-property/ scl-pinmux;
-        /delete-property/ sda-pinmux;
-        /delete-property/ scl-gpios;
-        /delete-property/ sda-gpios;
-};
 
 &i2c4 {
         statuc = "okay";
@@ -103,20 +43,24 @@
         /delete-property/ mute-gpio-r;
 };
 
-&fb_reserved {
-        status = "okay";
-};
-
-&cvi_fb {
-        status = "okay";
-};
-
-&mipi_rx {
-        snsr-reset = <&porte 1 GPIO_ACTIVE_LOW>;
+&soc_thermal_0 {
+	cooling-maps {
+		map0 {
+			trip = <&soc_thermal_trip_0>;
+			cooling-device = <&cooling THERMAL_NO_LIMIT 1>;
+		};
+		map1 {
+			trip = <&soc_thermal_trip_1>;
+			cooling-device = <&cooling THERMAL_NO_LIMIT THERMAL_NO_LIMIT>;
+		};
+	};
 };
 
 / {
         model = "LicheeRv Nano";
+
+	/delete-node/ wifi_pin;
+	/delete-node/ bt_pin;
 
         gpio-keys {
                 compatible = "gpio-keys";
@@ -155,15 +99,6 @@
                 status = "okay";
                 interrupts = <38 IRQ_TYPE_LEVEL_HIGH>;
                 interrupt-parent = <&plic0>;
-        };
-
-        // for maixcam
-        i2c5: i2c-gpio-a24-a23 {
-                compatible = "i2c-gpio";
-                scl-gpios = <&porta 24 (GPIO_ACTIVE_HIGH | GPIO_OPEN_DRAIN)>;
-                sda-gpios = <&porta 23 (GPIO_ACTIVE_HIGH | GPIO_OPEN_DRAIN)>;
-                i2c-gpio,delay-us = <5>;
-                status = "disabled";
         };
 
         leds {

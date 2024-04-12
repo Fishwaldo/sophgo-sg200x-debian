@@ -7,5 +7,5 @@ DDR_CFG=ddr3_1866_x16
 PARTITION_FILE=partition_sd.xml
 STORAGE_TYPE=sd
 
-#PACKAGES += " wireless-regdb wpasupplicant"
+PACKAGES += " duo-pinmux"
 #IMAGE_ADDITIONS += "aic8800-firmware"

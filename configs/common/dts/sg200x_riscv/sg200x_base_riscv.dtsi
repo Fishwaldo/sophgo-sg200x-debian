@@ -372,6 +372,7 @@
 	thermal:thermal@030E0000 {
 		interrupts = <16 IRQ_TYPE_LEVEL_HIGH>;
 		interrupt-names = "tempsen";
+		interrupt-parent = <&plic0>;
 	};
 
 };

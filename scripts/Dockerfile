@@ -15,7 +15,7 @@ RUN apt-get update \
         libgmp-dev libmpc-dev libmpfr-dev libssl-dev \
         libtool mmdebstrap openssl parted \
         patchutils python3 python3-dev python3-distutils \
-        python3-setuptools  swig \
+        python3-setuptools  swig gnupg \
         systemd-container texinfo zlib1g-dev wget arch-test \
         linux-image-generic genimage joe mc \
         fakeroot git kernel-wedge quilt ccache flex bison \
