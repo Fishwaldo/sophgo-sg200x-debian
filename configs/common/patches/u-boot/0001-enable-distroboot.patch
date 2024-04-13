@@ -1,14 +1,14 @@
-From 9196d5173df6817bbc6ec479bb55adfbe75e78ad Mon Sep 17 00:00:00 2001
+From 9d123e5baddd3415e1282d166740f2c578b7771a Mon Sep 17 00:00:00 2001
 From: Justin Hammond <justin@dynam.ac>
-Date: Fri, 5 Apr 2024 17:19:28 +0000
-Subject: [PATCH] update
+Date: Sat, 13 Apr 2024 13:22:32 +0800
+Subject: [PATCH] Update for distroboot
 
 ---
- include/configs/mars-asic.h | 23 +++++++++++++++++++----
- 1 file changed, 19 insertions(+), 4 deletions(-)
+ include/configs/mars-asic.h | 25 +++++++++++++++++++++----
+ 1 file changed, 21 insertions(+), 4 deletions(-)
 
 diff --git a/include/configs/mars-asic.h b/include/configs/mars-asic.h
-index 12cdefac..81191516 100644
+index 12cdefac84..de5219eb49 100644
 --- a/include/configs/mars-asic.h
 +++ b/include/configs/mars-asic.h
 @@ -9,13 +9,14 @@
@@ -40,24 +40,26 @@ index 12cdefac..81191516 100644
  #ifdef CONFIG_USE_DEFAULT_ENV
  /* The following Settings are chip dependent */
  /******************************************************************************/
-@@ -256,7 +263,15 @@
+@@ -256,7 +263,17 @@
  		"sdboot=" SD_BOOTM_COMMAND "\0" \
  		"sdbootauto=" SD_BOOTM_COMMAND_AUTO "\0" \
  		"othbootargs=" OTHERBOOTARGS "\0" \
 -		PARTS_OFFSET
-+		"pxefile_addr_r=" __stringify(UPDATE_ADDR) "\0" \
-+		"scriptaddr=" __stringify(UPDATE_ADDR) "\0" \
 +		"kernel_addr_r=" __stringify(CONFIG_SYS_TEXT_BASE) "\0" \
++		"fdt_addr_r=0x81200000\0" \
++		"fdtoverlay_addr_r=0x81300000\0" \
++		"pxefile_addr_r=0x81400000\0" \
++		"scriptaddr=0x81500000\0" \
++		"ramdisk_addr_r=0x81600000\0" \
++		"kernel_comp_addr_r=" __stringify(CVIMMAP_UIMAG_ADDR) "\0" \
++		"kernel_comp_size=" __stringify(CVIMMAP_UIMAG_SIZE) "\0" \
 +		"fdtfile=" FDT_NO ".dtb\0" \
-+		"kernel_comp_addr_r=0x88000000\0" \
-+		"kernel_comp_size=0x4000000\0" \
-+		"fdt_addr_r=" __stringify(UPDATE_ADDR) "\0" \
 +		PARTS_OFFSET \
 +		BOOTENV
  
  /********************************************************************************/
  	/* UBOOT_VBOOT commands */
-@@ -311,9 +326,9 @@
+@@ -311,9 +328,9 @@
  	#ifdef CONFIG_ENABLE_ALIOS_UPDATE
  		#define CONFIG_BOOTCOMMAND	"cvi_update_rtos"
  	#elif CONFIG_SD_BOOT
@@ -70,5 +72,5 @@ index 12cdefac..81191516 100644
  
  	#if defined(CONFIG_NAND_SUPPORT)
 -- 
-2.43.0
+2.44.0
 

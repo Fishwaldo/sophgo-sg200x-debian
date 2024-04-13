@@ -10,32 +10,31 @@
 		ranges;
 
 		fast_image: rproc {
-			compatible = "shared-dma-pool";
-			alloc-ranges = <0x0 CVIMMAP_FREERTOS_ADDR 0 CVIMMAP_FREERTOS_SIZE>;
-			size = <0x0 CVIMMAP_FREERTOS_SIZE>;
+			reg = <0x0 CVIMMAP_FREERTOS_ADDR 0x0 CVIMMAP_FREERTOS_SIZE>;
 			no-map;
 		};
 
 		vdev0vring0: vdev0vring0 {
 				compatible = "shared-dma-pool";
-				alloc-ranges = <0x0 0x8fb00000 0 0x4000>;
+				alloc-ranges = <0x0 0x8f528000 0 0x4000>;
 				size = <0x0 0x4000>;
 				no-map;
 		};
 
 		vdev0vring1: vdev0vring1 {
 				compatible = "shared-dma-pool";
-				alloc-ranges = <0x0 0x8fb04000 0 0x4000>;
+				alloc-ranges = <0x0 0x8f52C000 0 0x4000>;
 				size = <0x0 0x4000>;
 				no-map;
 		};
 
 		vdev0buffer: vdev0buffer {
 			compatible = "shared-dma-pool";
-			alloc-ranges = <0x0 0x8fb08000 0 0x100000>;
+			alloc-ranges = <0x0 0x8f530000 0 0x100000>;
 			size = <0x0 0x100000>;
 			no-map;
 		};
+
 
 #if (CVIMMAP_ION_SIZE > 0)	
 		ion_reserved: ion {
