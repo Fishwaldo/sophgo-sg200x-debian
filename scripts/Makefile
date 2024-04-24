@@ -9,8 +9,6 @@ reset:=$(shell tput sgr0)
 
 BUILDDIR := /build/
 
-
-
 ifndef BOARD
 $(error $(red)BOARD is not set$(reset))
 endif
@@ -164,8 +162,7 @@ $(BUILDDIR)/fsbl-prepare-patch-stamp: $(BUILDDIR)/fsbl-prepare-checkout-stamp
 
 $(BUILDDIR)/fsbl-compile-stamp: $(BUILDDIR)/fsbl-prepare-patch-stamp $(BUILDDIR)/opensbi-compile-stamp $(BUILDDIR)/uboot-compile-stamp
 	@echo "$(COLOUR_GREEN)Building FSBL for $(BOARD)$(END_COLOUR)"
-	@MONITOR_RUNADDR=$(CVIMMAP_MONITOR_ADDR) BLCP_2ND_RUNADDR=$(CVIMMAP_FSBL_C906L_START_ADDR) RTOS_DUMP_PRINT_SZ_IDX=1 RTOS_FAST_IMAGE_TYPE=1 \
-    cd $(BUILDDIR)/fsbl && $(MAKE) -j$(NPROCS) ARCH=$(ARCH) CHIP_ARCH=$(CHIP) BOOT_CPU=$(BOOT_CPU) DDR_CFG=$(DDR_CFG) RTOS_ENABLE_FREERTOS=y BLCP_2ND_PATH=$(BUILDDIR)/fsbl/blank.bin LOADER_2ND_PATH=$(BUILDDIR)/u-boot.bin \
+	@cd $(BUILDDIR)/fsbl && OD_CLK_SEL=y $(MAKE) -j$(NPROCS) ARCH=$(ARCH) CHIP_ARCH=$(CHIP) BOOT_CPU=$(BOOT_CPU) DDR_CFG=$(DDR_CFG) RTOS_ENABLE_FREERTOS=y BLCP_2ND_PATH=$(BUILDDIR)/fsbl/blank.bin LOADER_2ND_PATH=$(BUILDDIR)/u-boot.bin \
     CROSS_COMPILE=/host-tools/gcc/riscv64-linux-musl-x86_64/bin/riscv64-unknown-linux-musl- 
 	@cp $(BUILDDIR)/fsbl/build/$(CHIP)/fip.bin $(BUILDDIR)
 	@touch $@
@@ -201,7 +198,7 @@ $(BUILDDIR)/image-prepare-stamp:
 	@mmdebstrap -v --architectures=riscv64 --include="$(_PACKAGES)" sid "/rootfs/" "deb http://deb.debian.org/debian/ sid main" "deb https://sophgo.my-ho.st:8443/ debian sophgo"
 	@touch $@
 
-$(BUILDDIR)/image-addons-stamp: $(BUILDDIR)/image-prepare-stamp $(addon-targets) $(BUILDDIR)/fsbl-package-stamp $(BUILDDIR)/linux-compile-stamp
+$(BUILDDIR)/image-addons-stamp: $(BUILDDIR)/image-prepare-stamp $(BUILDDIR)/fsbl-package-stamp $(BUILDDIR)/linux-compile-stamp $(addon-targets)
 	@echo "$(COLOUR_GREEN)Copying Deb files for installation on $(BOARD)$(END_COLOUR)"
 	@cp /output/cvitek-fsbl-$(BOARD)-*.deb /rootfs/tmp/install/
 	@cp /output/linux-image-$(BOARD)-*.deb /rootfs/tmp/install/

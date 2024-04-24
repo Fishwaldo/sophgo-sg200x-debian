@@ -1,0 +1,13 @@
+[Unit]
+Description=Ethernet Led Triggers
+After=network.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=oneshot
+ExecStart=/bin/bash -c "/bin/echo end0 > /sys/class/leds/orange/device_name"
+ExecStart=/bin/bash -c "/bin/echo 1 > /sys/class/leds/orange/tx"
+ExecStart=/bin/bash -c "/bin/echo 1 > /sys/class/leds/orange/rx"
+
+[Install]
+WantedBy=multi-user.target

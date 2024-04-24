@@ -1,0 +1,134 @@
+/dts-v1/;
+#include "cv181x_base_riscv.dtsi"
+#include "cv181x_asic_bga.dtsi"
+#include "cv181x_asic_sd.dtsi"
+#include "cv181x_default_memmap.dtsi"
+
+#include "dt-bindings/leds/common.h"
+#ifndef __UBOOT__
+#include <dt-bindings/mailbox/cvitek-mailbox.h>
+#endif
+
+
+&mipi_rx{
+	snsr-reset = <&portc 17 GPIO_ACTIVE_LOW>, <&portc 17 GPIO_ACTIVE_LOW>, <&portc 17 GPIO_ACTIVE_LOW>;
+};
+
+&dac{
+	/delete-property/ mute-gpio-l;
+	/delete-property/ mute-gpio-r;
+};
+
+&i2c0 {
+	status = "disabled";
+};
+
+&spi3 {
+	status = "okay";
+
+	spidev@0 {
+		status = "okay";
+	};
+};
+
+&usb {
+	vbus-gpio = <&portb 6 0>;
+};
+
+&wifisd {
+	status = "okay";
+	cap-sd-highspeed;
+	sd-uhs-sdr25;
+	sd-uhs-ddr50;
+	sd-uhs-sdr104;
+	min-frequency = <400000>;
+	max-frequency = <187500000>;
+};
+
+&wifi_pin {
+	compatible = "cvitek,wifi-pin";
+	poweron-gpio = <&porta 15 GPIO_ACTIVE_HIGH>;
+	wakeup-gpio = <&porte 7 GPIO_ACTIVE_HIGH>;
+};
+
+&uart4 {
+	status = "okay";
+};
+
+&soc_thermal_0 {
+	cooling-maps {
+		map0 {
+			trip = <&soc_thermal_trip_0>;
+			cooling-device = <&cv181x_cooling THERMAL_NO_LIMIT 1>;
+		};
+		map1 {
+			trip = <&soc_thermal_trip_1>;
+			cooling-device = <&cv181x_cooling THERMAL_NO_LIMIT THERMAL_NO_LIMIT>;
+		};
+	};
+};
+
+&porta {
+	wifi_pwr {
+		gpio-hog;
+		gpios = <15 GPIO_ACTIVE_HIGH>;
+		output-high;
+	};
+};
+
+/ {
+	model = "Milk-V DuoS";
+	
+	/delete-node/ wifi_pin;
+	/delete-node/ bt_pin;
+
+	leds {
+		compatible = "gpio-leds";
+		led0 {
+			gpios = <&porta 29 GPIO_ACTIVE_LOW>;
+			linux,default-trigger = "heartbeat";
+			function = LED_FUNCTION_HEARTBEAT;
+			label = "blue";
+		};
+		led1 {
+			gpios = <&porte 6 GPIO_ACTIVE_HIGH>;
+			linux,default-trigger = "netdev";
+			function = LED_FUNCTION_HEARTBEAT;
+			label = "orange";
+		};
+		led2 {
+			gpios = <&porte 8 GPIO_ACTIVE_HIGH>;
+			linux,default-trigger = "stmmac-0:00:link";
+			function = LED_FUNCTION_HEARTBEAT;
+			label = "green";
+		};
+	};
+
+
+#ifndef __UBOOT__        
+	mbox: mbox@0x01900000 {
+		compatible = "cvitek,sg200x-mailbox";
+		reg = <0x0 0x01900000 0x0 0x1000>;
+		reg-names = "mailbox";
+		interrupts	= <101 IRQ_TYPE_LEVEL_HIGH>;
+		interrupt-parent = <&plic0>;
+		status = "okay";
+		#mbox-cells = <4>;
+	};
+
+	cv181x-c906_1 {
+		compatible	= "cvitek,cv181x-c906_1";
+		memory-region	= <&fast_image &vdev0vring0 &vdev0vring1 &vdev0buffer>;
+        firmware        = "c906-mcu.elf";
+        resets		= <&rst RST_C906_1>;
+		reset-names	= "sw_reset";
+        clocks		= <&clk CV181X_CLK_C906_1>;
+		clock-names     = "clk_c906_1";
+		mboxes		= <&mbox 0 CVITEK_MBOX_DIRECTION_TX CVITEK_MBOX_C906_1 1>, <&mbox 1 CVITEK_MBOX_DIRECTION_RX CVITEK_MBOX_C906_1 1>;
+		mbox-names	= "vq_tx", "vq_rx";
+		status		= "okay";
+	};
+#endif
+
+};
+

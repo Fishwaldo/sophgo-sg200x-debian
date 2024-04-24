@@ -1,5 +1,5 @@
 [Unit]
-Description=USB Gadget Support
+Description=USB rndis DHCP Gadget Support
 After=usb-gadget.service
 After=ifup@usb0.service
 StartLimitIntervalSec=0

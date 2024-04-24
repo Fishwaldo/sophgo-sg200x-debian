@@ -1,6 +1,8 @@
-# Debian Images for Sophgo cv1800/sg200x based boards 
+# Debian Images for Sophgo cv181x/sg200x based boards 
 
-This repository builds debian sid images for Sophgo cv1800/sg200x based boards such as MilkV Duo/Duo256 and Sipeed LicheeRvNano.
+This repository builds debian sid images for Sophgo cv181x/sg200x based boards such as MilkV Duo256/DuoS (SD Version only) and Sipeed LicheeRvNano.
+
+(Note, we don't support the MilkV Duo, as it does not have enough ram to run Debian)
 
 The images aim to be as close to possible to debian best practices as possible
 
@@ -53,7 +55,7 @@ https://sophgo.my-ho.st:8443/ which pulls down the compiled debian packages from
 
 To build a stock image with no modifications:
 ```
-podman run --privileged -it --rm -v ./configs/:/configs -v ./image:/output -v ghcr.io/fishwaldo/sophgo-sg200x-debian:master make BOARD=licheervnano image
+podman run --privileged -it --rm -v ./configs/:/configs -v ./image:/output ghcr.io/fishwaldo/sophgo-sg200x-debian:master make BOARD=licheervnano image
 ```
 
 Replace the licheervnano with the board you want to build for:
@@ -85,9 +87,9 @@ The configs directory contains patches, configuration and device tree files that
 
 The configs/common directory contains the common configuration for all boards, and the configs/licheervnano and configs/duo256 directories contain the board specific configuration.
 
-To add packages to the image, either add the package name in PACKAGES variable of configs/settings.mk or if the packae is specific to a board, add it to the configs/<board>/settings.mk file
+To add packages to the image, either add the package name in PACKAGES variable of configs/settings.mk or if the packae is specific to a board, add it to the configs/\<board\>/settings.mk file
 
-Patches for the kernel, opensbi, u-boot or fsbl can be placed in configs/common/patches/ or configs/<board>/patches/ depending what they are for.
+Patches for the kernel, opensbi, u-boot or fsbl can be placed in configs/common/patches/ or configs/\<board\>/patches/ depending what they are for.
 
 To assist with developing the image, you can get a shell in the docker container by running:
 ```
@@ -98,7 +100,7 @@ inside the container, packages are build in the /builder/ directory, and the roo
 
 
 # TODO
-- Add support for the DuoS board
+- Add support for the DuoS EMMC Board
 - DeviceTree Overlay Support
 - Add support for the MIPI-CSI/DSI drivers (Sample applications would be in the sophgo-sg200x-packages repository if they do not depend upon a musl libc version)
 - Add support for the TPU drivers
