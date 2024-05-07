@@ -50,7 +50,7 @@ index 12cdefac84..de5219eb49 100644
 +		"fdtoverlay_addr_r=0x81300000\0" \
 +		"pxefile_addr_r=0x81400000\0" \
 +		"scriptaddr=0x81500000\0" \
-+		"ramdisk_addr_r=0x81600000\0" \
++		"ramdisk_addr_r=0x84000000\0" \
 +		"kernel_comp_addr_r=" __stringify(CVIMMAP_UIMAG_ADDR) "\0" \
 +		"kernel_comp_size=" __stringify(CVIMMAP_UIMAG_SIZE) "\0" \
 +		"fdtfile=" FDT_NO ".dtb\0" \
