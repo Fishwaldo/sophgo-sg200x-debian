@@ -131,6 +131,10 @@ deb http://deb.debian.org/debian sid main non-free-firmware
 deb https://sophgo.my-ho.st:8443/ debian sophgo
 EOF
 
+echo "/boot/uboot.env	0x0000          0x20000" > /etc/fw_env.config
+mkenvimage -s 0x20000 -o /boot/uboot.env /etc/u-boot-initial-env
+
+
 #
 # Clean apt cache on the system
 #
