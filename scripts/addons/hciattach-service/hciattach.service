@@ -1,0 +1,11 @@
+[Unit]
+Description=Attach Bluetooth to UART
+After=dev-ttyS4.device
+Before=bluetooth.service
+
+[Service]
+Type=forking
+ExecStart=/usr/bin/hciattach -s 1500000 /dev/ttyS4 any 1500000 flow nosleep
+
+[Install]
+WantedBy=multi-user.target
