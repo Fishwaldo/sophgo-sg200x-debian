@@ -12,6 +12,8 @@ Logins: root/rv and debain/rv
 
 (root login is disabled via SSH, login via debian, and SU to root if needed)
 
+### USB Gadget Support
+
 by default, a rndis interface is started on the USB port, and the IP address is
 10.42.0.1 - It also starts a DHCP Server on that interface, so your PC should automatically get an IP address in the 10.42.0.x range
 
@@ -28,12 +30,29 @@ systemctl enable usb-gadget-acm
 
 After executing these commands, you need to reboot.
 
-For the LicheeRVNano board, Wifi is enabled. To connect to your wifi network, execute the following command and select "Activate a connection" and select your wifi network:
+### DuoS - USB Type A Port
+
+After disabling the usb-gadgets, if you want to use the USB Type A Ports, then you need to turn them on:
+
+```
+systemctl enable usb-switch
+```
+
+and reboot afterwards. 
+
+### Wifi on DuoS/LicheeRVNano
+
+For the LicheeRVNano/DuoS board, Wifi is enabled. To connect to your wifi network, execute the following command and select "Activate a connection" and select your wifi network:
 ```
 nmtui
 ```
 
-for Boards with eithernet, they should automatically get a IP address if your network has a DHCP Server.
+### Ethernet
+
+For Boards with eithernet, they should automatically get a IP address if your network has a DHCP Server. You can configure the 
+ethernet port in nmtui
+
+### Camera/ISP/Panel Support
 
 The images are based on the vendor 5.10 kernel, but exclude the following drivers:
 - mipi-rx/csi drivers
@@ -45,7 +64,11 @@ The images are based on the vendor 5.10 kernel, but exclude the following driver
 
 The images, by default, do not allocate any memory for the ION heap, as they are unused in this image, so you get the full memory of each device
 
+### Ardunio/Freertos Support
+
 The images also include the remoteproc and mailbox drivers so you can load up ardunio/freertos images on the small C906 core. 
+
+### Additional Packages
 
 This image also adds the debian repository for https://github.com/Fishwaldo/sophgo-sg200x-packages so you can install additional repositories. The debian repository is hosted at 
 https://sophgo.my-ho.st:8443/ which pulls down the compiled debian packages from the above github repository occasionally.
@@ -60,6 +83,7 @@ podman run --privileged -it --rm -v ./configs/:/configs -v ./image:/output ghcr.
 
 Replace the licheervnano with the board you want to build for:
 - duo256
+- duos
 - licheervnano
 
 The Docker image will build the image and place it in the image directory
