@@ -8,7 +8,7 @@ The images aim to be as close to possible to debian best practices as possible
 
 ## Image Info
 
-Logins: root/rv and debain/rv
+Logins: root/rv and debian/rv
 
 (root login is disabled via SSH, login via debian, and SU to root if needed)
 
