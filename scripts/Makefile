@@ -203,7 +203,7 @@ $(BUILDDIR)/image-prepare-stamp:
 
 $(BUILDDIR)/image-addons-stamp: $(BUILDDIR)/image-prepare-stamp $(BUILDDIR)/fsbl-package-stamp $(BUILDDIR)/linux-compile-stamp $(addon-targets)
 	@echo "$(COLOUR_GREEN)Copying Deb files for installation on $(BOARD)$(END_COLOUR)"
-	@cp /output/cvitek-fsbl-$(BOARD)-*.deb /rootfs/tmp/install/
+	@cp /output/cvitek-fsbl-$(BOARD)-*.deb /rootfs/tmp/install/; 
 	@cp /output/linux-image-$(BOARD)-*.deb /rootfs/tmp/install/
 	@cp /output/linux-headers-*.deb /rootfs/tmp/install/
 	@cp /output/linux-libc-dev*.deb /rootfs/tmp/install/
@@ -215,6 +215,7 @@ $(BUILDDIR)/image-customize-stamp: $(BUILDDIR)/image-addons-stamp $(BUILDDIR)/li
 	@mkdir -p /rootfs/tmp/install/
 	@echo $(BOARD) > /rootfs/tmp/install/hostname
 	@echo $(BOARD) > /rootfs/tmp/install/board
+	@echo $(STORAGE_TYPE) > /rootfs/tmp/install/storage
 	@cp -v /usr/bin/qemu-riscv64-static /rootfs/tmp/install/
 	@cp -v /builder/setup_rootfs.sh /rootfs/tmp/install/
 	@cp -v $(BUILDDIR)/public-key.asc /rootfs/tmp/install/
@@ -229,10 +230,21 @@ $(BUILDDIR)/image-customize-stamp: $(BUILDDIR)/image-addons-stamp $(BUILDDIR)/li
 $(BUILDDIR)/image-compile-stamp: $(BUILDDIR)/image-customize-stamp
 	@echo "$(COLOUR_GREEN)Compiling Image for $(BOARD)$(END_COLOUR)"
 	@rm -rf /tmp/genimage/
-	@cd $(BUILDDIR) && genimage --config /builder/genimage.cfg --tmppath /tmp/genimage --rootpath /rootfs/
+	@cd $(BUILDDIR) && genimage --config /builder/genimage_$(STORAGE_TYPE).cfg --tmppath /tmp/genimage --rootpath /rootfs/
 	@rm -rf /tmp/genimage/
-	@cp $(BUILDDIR)/images/sdcard.img /output/$(BOARD)_$(STORAGE_TYPE).img
-	@echo "$(COLOUR_GREEN)Image for $(BOARD) is $(BOARD)_$(STORAGE_TYPE).img$(END_COLOUR)"
+	@if [ "$(STORAGE_TYPE)" = "emmc" ]; then \
+		python3 /builder/python/raw2cimg.py -v $(BUILDDIR)/images/sdcard.img $(BUILDDIR)/images /configs/$(BOARD)/partition_emmc.xml; \
+		mkdir -p /tmp/rom/; \
+		cp $(BUILDDIR)/images/sdcard.img /tmp/rom/; \
+		cp /configs/$(BOARD)/partition_emmc.xml /tmp/rom/; \
+		cp $(BUILDDIR)/fip.bin /tmp/rom/; \
+		cd /tmp && zip $(BOARD)_$(STORAGE_TYPE).zip -r rom/; \
+		cp /tmp/$(BOARD)_$(STORAGE_TYPE).zip /output/; \
+		echo "$(COLOUR_GREEN)Image for $(BOARD) is $(BOARD)_$(STORAGE_TYPE).zip$(END_COLOUR)"; \
+	else \
+		cp $(BUILDDIR)/images/sdcard.img /output/$(BOARD)_$(STORAGE_TYPE).img; \
+		echo "$(COLOUR_GREEN)Image for $(BOARD) is $(BOARD)_$(STORAGE_TYPE).img$(END_COLOUR)"; \
+	fi 
 	@touch $@
 
 image: $(BUILDDIR)/image-compile-stamp

@@ -1,11 +1,11 @@
 CHIP=cv181x
+STORAGE_TYPE?=sd
 UBOOT_CHIP=cv181x
-UBOOT_BOARD=milkv_duos_sd
+UBOOT_BOARD=milkv_duos_$(STORAGE_TYPE)
 BOOT_CPU=riscv
 ARCH=riscv
 DDR_CFG=ddr3_1866_x16
-PARTITION_FILE=partition_sd.xml
-STORAGE_TYPE=sd
+PARTITION_FILE=partition_$(STORAGE_TYPE).xml
 
 PACKAGES += " duo-pinmux wireless-regdb wpasupplicant cvi-pinmux-cv181x bluez"
 

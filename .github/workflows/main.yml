@@ -48,12 +48,18 @@ jobs:
             push: ${{ github.event_name != 'pull_request' }}
             tags: ${{ steps.meta.outputs.tags }}
             labels: ${{ steps.meta.outputs.labels }}
-
+        - name: pause
+          if: (github.event_name != 'pull_request' && steps.filter.outputs.src == 'true') || startsWith(github.event.ref, 'refs/tags/v')
+          run: sleep 120
           
   build-image:
     strategy:
       matrix:
         boards: [licheervnano, duo256, duos]
+        storage: [sd]
+        include: 
+          - boards: duos
+            storage: emmc
     runs-on: ubuntu-latest
     needs: build-docker-image
     steps:
@@ -67,23 +73,23 @@ jobs:
           image: ghcr.io/fishwaldo/sophgo-sg200x-debian:master
           options: --privileged -v ${{ github.workspace }}/images/:/output -v ${{ github.workspace }}/configs/:/configs/
           run: |
-            make BOARD=${{ matrix.boards }} image
+            make BOARD=${{ matrix.boards }} STORAGE_TYPE=${{ matrix.storage }} image
             chmod 777 /output/
       - name: Pack
         run: |
           cd images/
           ls -lah
-          if [ -f ${{ matrix.boards }}_sd.img ]; then
-              lz4 -9 -f ${{ matrix.boards }}_sd.img ${{ matrix.boards }}_sd.img.lz4
-              rm ${{ matrix.boards }}_sd.img
+          if [ -f ${{ matrix.boards }}_${{ matrix.storage }}.img ]; then
+              lz4 -9 -f ${{ matrix.boards }}_${{ matrix.storage }}.img ${{ matrix.boards }}_${{ matrix.storage }}.img.lz4
+              rm ${{ matrix.boards }}_${{ matrix.storage }}.img
           fi
-          tar czvf ${{ matrix.boards }}_debs.tar.gz *.deb
+          tar czvf ${{ matrix.boards }}-${{ matrix.storage }}_debs.tar.gz *.deb
           rm *.deb
           echo "PACKAGE=${{ github.workspace }}/images/*" >> $GITHUB_ENV
       - name: Upload package
         uses: actions/upload-artifact@v4
         with:
-          name: image-files-${{ matrix.boards }}
+          name: image-files-${{ matrix.boards }}-${{ matrix.storage }}
           path: |
             ${{env.PACKAGE}}
   release:

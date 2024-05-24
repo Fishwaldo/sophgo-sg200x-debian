@@ -17,7 +17,7 @@ RUN apt-get update \
         patchutils python3 python3-dev python3-distutils \
         python3-setuptools  swig gnupg \
         systemd-container texinfo zlib1g-dev wget arch-test \
-        linux-image-generic genimage joe mc \
+        linux-image-generic genimage joe mc zip \
         fakeroot git kernel-wedge quilt ccache flex bison \
         libssl-dev dh-exec rsync libelf-dev bc gcc-riscv64-unknown-elf \
     && git clone --depth 1 https://github.com/milkv-duo/host-tools.git /host-tools \

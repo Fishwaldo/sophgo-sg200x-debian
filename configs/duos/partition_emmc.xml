@@ -1,0 +1,3 @@
+<physical_partition type="emmc">
+    <partition label="ROOTFS" size_in_kb="940374" readonly="false" file="sdcard.img" type="ext4" />
+</physical_partition>

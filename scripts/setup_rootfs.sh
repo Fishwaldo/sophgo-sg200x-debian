@@ -4,6 +4,7 @@ set -ex
 
 BOARD=$(cat /tmp/install/board)
 HOSTNAME=$(cat /tmp/install/hostname)
+STORAGETYPE=$(cat /tmp/install/storage)
 
 
 export DEBIAN_FRONTEND=noninteractive DEBCONF_NONINTERACTIVE_SEEN=true
@@ -42,8 +43,15 @@ usermod --password "$(echo rv | openssl passwd -1 -stdin)" debian || true
 cat > /etc/fstab <<EOF
 # <file system> <mount point>   <type>  <options>                 <dump>  <pass>
 /dev/root       /               auto    defaults                  1       1
-/dev/mmcblk0p1  /boot/          vfat    umask=0077                0       1
 EOF
+
+if [ "$STORAGETYPE" = "sd" ]; then
+  cat >> /etc/fstab <<EOF
+/dev/mmcblk0p1  /boot           auto    defaults                  1       2
+EOF
+fi
+
+
 
 #regenerate SSH keys on first boot
 cat > /etc/systemd/system/finalize-image.service <<EOF
@@ -64,6 +72,11 @@ ExecStartPost=/bin/systemctl disable finalize-image
 WantedBy=multi-user.target
 EOF
 
+if [ "$STORAGETYPE" = "emmc" ]; then
+sed -i -e 's|ExecStartPre=-/usr/sbin/parted -s -f /dev/mmcblk0 resizepart 2 100%|ExecStartPre=-/usr/sbin/parted -s -f /dev/mmcblk0 resizepart 1 100%|' /etc/systemd/system/finalize-image.service
+fi
+
+cat /etc/systemd/system/finalize-image.service
 
 apt install -y -f /tmp/install/*.deb
 
@@ -91,16 +104,23 @@ cp ${lib_dir}/cvitek/*.dtb /boot/fdt/${kernel_image}/
 
 cat /boot/extlinux/extlinux.conf
 
+if [ "$STORAGETYPE" = "sd" ]; then
 sed -i -i 's|#U_BOOT_PARAMETERS=".*"|U_BOOT_PARAMETERS="console=ttyS0,115200 earlycon=sbi root=/dev/mmcblk0p2 rootwait rw"|' /etc/default/u-boot
+else
+sed -i -i 's|#U_BOOT_PARAMETERS=".*"|U_BOOT_PARAMETERS="console=ttyS0,115200 earlycon=sbi root=/dev/mmcblk0p1 rootwait rw"|' /etc/default/u-boot
+fi
+
 sed -i -e 's|#U_BOOT_SYNC_DTBS=".*"|U_BOOT_SYNC_DTBS="true"|' /etc/default/u-boot
 #doing this dance, as in the chroot, / and /boot are same filesystem, so u-boot-update doesn't setup correctly
 echo "U_BOOT_FDT_DIR=\"/usr/lib/linux-image-$BOARD-\"" >> /etc/default/u-boot
 u-boot-update
-sed -i -e 's|fdtdir /usr/lib/|fdtdir /fdt/|' /boot/extlinux/extlinux.conf
-sed -i -e 's|linux /boot/|linux /|' /boot/extlinux/extlinux.conf
-#sed -i -e 's|append .*|append console=ttyS0,115200 earlycon=sbi root=/dev/mmcblk0p2 rootwait rw |' /boot/extlinux/extlinux.conf
-sed -i -e "s|U_BOOT_FDT_DIR=\".*\"|U_BOOT_FDT_DIR=\"/fdt/linux-image-$BOARD-\"|" /etc/default/u-boot
-
+if [ "$STORAGETYPE" = "sd" ]; then
+  sed -i -e 's|fdtdir /usr/lib/|fdtdir /fdt/|' /boot/extlinux/extlinux.conf
+  sed -i -e 's|linux /boot/|linux /|' /boot/extlinux/extlinux.conf
+  sed -i -e "s|U_BOOT_FDT_DIR=\".*\"|U_BOOT_FDT_DIR=\"/fdt/linux-image-$BOARD-\"|" /etc/default/u-boot
+else 
+  sed -i -e 's|fdtdir /usr/lib/|fdtdir /boot/fdt/|' /boot/extlinux/extlinux.conf
+fi
 
 cat /boot/extlinux/extlinux.conf
 
