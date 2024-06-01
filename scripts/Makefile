@@ -28,6 +28,7 @@ _PACKAGES = $(patsubst "%,%,$(patsubst %",%,$(PACKAGES)))
 
 
 $(info $(blue)Board: $(BOARD)$(reset))
+$(info $(blue)Storage: $(STORAGE_TYPE)$(reset))
 $(info $(blue)Image Addons: $(IMAGE_ADDITIONS)$(reset))
 $(info $(blue)Packages: $(_PACKAGES)$(reset))
 
@@ -37,8 +38,8 @@ NPROCS := $(shell nproc)
 $(BUILDDIR)/linux-prepare-checkout-stamp:
 	@echo "$(COLOUR_GREEN)Checking out Kernel for $(BOARD)$(END_COLOUR)"
 	@mkdir -p $(BUILDDIR)
-	@git clone -b sg200x-dev --depth 1 https://github.com/sophgo/linux_5.10.git /build/kernel
-	@cd $(BUILDDIR)/kernel && git checkout 25faa0d
+	@git clone -b sg200x-dev --depth 5 https://github.com/sophgo/linux_5.10.git /build/kernel
+	@cd $(BUILDDIR)/kernel && git checkout 8b8fbf8
 	@touch $@
 
 $(BUILDDIR)/linux-prepare-patch-stamp: $(BUILDDIR)/linux-prepare-checkout-stamp
@@ -203,7 +204,7 @@ $(BUILDDIR)/image-prepare-stamp:
 
 $(BUILDDIR)/image-addons-stamp: $(BUILDDIR)/image-prepare-stamp $(BUILDDIR)/fsbl-package-stamp $(BUILDDIR)/linux-compile-stamp $(addon-targets)
 	@echo "$(COLOUR_GREEN)Copying Deb files for installation on $(BOARD)$(END_COLOUR)"
-	@cp /output/cvitek-fsbl-$(BOARD)-*.deb /rootfs/tmp/install/; 
+	@cp /output/cvitek-fsbl-$(BOARD)-*.deb /rootfs/tmp/install/ 
 	@cp /output/linux-image-$(BOARD)-*.deb /rootfs/tmp/install/
 	@cp /output/linux-headers-*.deb /rootfs/tmp/install/
 	@cp /output/linux-libc-dev*.deb /rootfs/tmp/install/
