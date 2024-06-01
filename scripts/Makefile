@@ -122,10 +122,8 @@ uboot-clean:
 $(BUILDDIR)/opensbi-prepare-checkout-stamp:
 	@echo "$(COLOUR_GREEN)Checking out OpenSBI for $(BOARD)$(END_COLOUR)"
 	@mkdir -p $(BUILDDIR)
-	@git clone -b sg200x-dev --depth 1 https://github.com/sophgo/opensbi.git $(BUILDDIR)/opensbi
-	@cd $(BUILDDIR)/opensbi && git checkout 216793f
-#	git clone https://github.com/riscv-software-src/opensbi.git $(BUILDDIR)/opensbi
-#	@cd $(BUILDDIR)/opensbi && git checkout a2b255b
+	@git clone https://github.com/riscv-software-src/opensbi.git $(BUILDDIR)/opensbi
+	@cd $(BUILDDIR)/opensbi && git checkout a2b255b
 	@touch $@
 
 
