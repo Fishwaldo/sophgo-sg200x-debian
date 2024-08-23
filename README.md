@@ -94,7 +94,7 @@ https://sophgo.my-ho.st:8443/ which pulls down the compiled debian packages from
 ## Building the Image
 To build a stock image with no modifications:
 ```
-podman run --privileged -it --rm -v ./configs/:/configs -v ./image:/output ghcr.io/fishwaldo/sophgo-sg200x-debian:master make BOARD=licheervnano image
+podman run --privileged -it --rm -v ./configs/:/configs -v ./image:/output ghcr.io/fishwaldo/sophgo-sg200x-debian:mainline make BOARD=licheervnano image
 ```
 
 Replace the licheervnano with the board you want to build for:
