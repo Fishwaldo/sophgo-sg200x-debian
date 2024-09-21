@@ -198,6 +198,10 @@ $(BUILDDIR)/image-prepare-stamp:
 	@-rm $(addon-targets)
 	@mkdir -p /rootfs/
 	@curl -s https://sophgo.my-ho.st:8443/public-key.asc -o $(BUILDDIR)/public-key.asc
+#       @apt-key add $(BUILDDIR)/public-key.asc
+#       @gpg import $(BUILDDIR)/public-key.asc
+        @curl -sSL https://sophgo.my-ho.st:8443/public-key.asc | gpg --import -
+ 
 	@apt-key add $(BUILDDIR)/public-key.asc
 	@mmdebstrap -v --architectures=riscv64 --include="$(_PACKAGES)" sid "/rootfs/" "deb http://deb.debian.org/debian/ sid main" "deb https://sophgo.my-ho.st:8443/ debian sophgo"
 	@touch $@
