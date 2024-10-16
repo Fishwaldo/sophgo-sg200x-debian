@@ -1,5 +1,7 @@
 FROM debian:sid as builder
 
+
+
 ARG DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update \
@@ -14,8 +16,8 @@ RUN apt-get update \
         git gperf kmod libexpat-dev \
         libgmp-dev libmpc-dev libmpfr-dev libssl-dev \
         libtool mmdebstrap openssl parted \
-        patchutils python3 python3-dev python3-distutils \
-        python3-setuptools  swig gnupg \
+   #     patchutils python3 python3-dev python3-distutils \ 
+   #     python3-setuptools  swig gnupg \
         systemd-container texinfo zlib1g-dev wget arch-test \
         linux-image-generic genimage joe mc zip \
         fakeroot git kernel-wedge quilt ccache flex bison \

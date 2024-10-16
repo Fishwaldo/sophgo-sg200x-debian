@@ -2,15 +2,17 @@ From f3d19c2b583c3f6b4f8fe5c3d367a68275242d9d Mon Sep 17 00:00:00 2001
 From: Justin Hammond <Justin@dynam.ac>
 Date: Sat, 6 Apr 2024 10:49:01 +0000
 Subject: [PATCH] fix compile error
-
 ---
  plat/sg200x/bl2/bl2_main.c | 3 ++-
  1 file changed, 2 insertions(+), 1 deletion(-)
 
-diff --git a/plat/sg200x/bl2/bl2_main.c b/plat/sg200x/bl2/bl2_main.c
+diff --git a/plat/cv181x/bl2/bl2_main.c b/plat/cv181x/bl2/bl2_main.c
+#diff --git a/plat/sg200x/bl2/bl2_main.c b/plat/sg200x/bl2/bl2_main.c
 index d1f830b..6f2d788 100644
---- a/plat/sg200x/bl2/bl2_main.c
-+++ b/plat/sg200x/bl2/bl2_main.c
+#--- a/plat/sg200x/bl2/bl2_main.c
+#+++ b/plat/sg200x/bl2/bl2_main.c
+--- a/plat/cv181x/bl2/bl2_main.c
++++ b/plat/cv181x/bl2/bl2_main.c
 @@ -15,6 +15,7 @@
  #ifdef RTOS_ENABLE_FREERTOS
  int init_comm_info(int ret)

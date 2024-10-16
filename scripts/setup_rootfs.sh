@@ -98,7 +98,7 @@ kernel_image=${lib_dir##*/}
 
 # set default dtb file, please verify your board version
 mkdir -p /boot/fdt/${kernel_image}
-
+#/rootfs/usr/lib/linux-image-duos-5.10.4-20240913-2+
 cp ${lib_dir}/cvitek/*.dtb /boot/fdt/${kernel_image}/
 
 
