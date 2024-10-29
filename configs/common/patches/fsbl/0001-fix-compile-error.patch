@@ -1,17 +1,23 @@
-From f3d19c2b583c3f6b4f8fe5c3d367a68275242d9d Mon Sep 17 00:00:00 2001
-From: Justin Hammond <Justin@dynam.ac>
-Date: Sat, 6 Apr 2024 10:49:01 +0000
-Subject: [PATCH] fix compile error
-
----
- plat/sg200x/bl2/bl2_main.c | 3 ++-
- 1 file changed, 2 insertions(+), 1 deletion(-)
-
-diff --git a/plat/sg200x/bl2/bl2_main.c b/plat/sg200x/bl2/bl2_main.c
-index d1f830b..6f2d788 100644
---- a/plat/sg200x/bl2/bl2_main.c
-+++ b/plat/sg200x/bl2/bl2_main.c
-@@ -15,6 +15,7 @@
+diff --git a/plat/cv180x/bl2/bl2_main.c b/plat/cv180x/bl2/bl2_main.c
+index e1eee38..f989e09 100644
+--- a/plat/cv180x/bl2/bl2_main.c
++++ b/plat/cv180x/bl2/bl2_main.c
+@@ -25,8 +25,8 @@ int init_comm_info(int ret)
+ 	transfer_config_s.encode_buf_size = CVIMMAP_H26X_ENC_BUFF_SIZE;
+ 	transfer_config_s.dump_print_enable = RTOS_DUMP_PRINT_ENABLE;
+ 	transfer_config_s.dump_print_size_idx = RTOS_DUMP_PRINT_SZ_IDX;
+-	transfer_config_s.image_type = RTOS_FAST_IMAGE_TYPE;
+-	transfer_config_s.mcu_status = MCU_STATUS_NONOS_DONE;
++//	transfer_config_s.image_type = RTOS_FAST_IMAGE_TYPE;
++//	transfer_config_s.mcu_status = MCU_STATUS_NONOS_DONE;
+ 	for (int i = 0; i < transfer_config_s.conf_size; i++) {
+ 		checksum += ptr[i];
+ 	}
+diff --git a/plat/cv181x/bl2/bl2_main.c b/plat/cv181x/bl2/bl2_main.c
+index 09b117b..b0185d9 100644
+--- a/plat/cv181x/bl2/bl2_main.c
++++ b/plat/cv181x/bl2/bl2_main.c
+@@ -10,6 +10,7 @@ enum CHIP_CLK_MODE chip_clk_mode = CLK_ND;
  #ifdef RTOS_ENABLE_FREERTOS
  int init_comm_info(int ret)
  {
@@ -19,7 +25,7 @@ index d1f830b..6f2d788 100644
  	struct transfer_config_t *transfer_config = (struct transfer_config_t *)MAILBOX_FIELD;
  	struct transfer_config_t transfer_config_s;
  	unsigned char *ptr = (unsigned char *)&transfer_config_s;
-@@ -40,7 +41,7 @@ int init_comm_info(int ret)
+@@ -35,7 +36,7 @@ int init_comm_info(int ret)
  
  	transfer_config_s.checksum = checksum;
  	memcpy(transfer_config, &transfer_config_s, sizeof(struct transfer_config_t));
@@ -28,6 +34,3 @@ index d1f830b..6f2d788 100644
  	return ret;
  }
  #endif
--- 
-2.43.0
-
