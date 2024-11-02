@@ -102,7 +102,7 @@ Replace the licheervnano with the board you want to build for:
 - duos
 - licheervnano
 
-If you want to create a image for the DuoS with EMMC, you can add "STORAGE_TYPE=emmc" to the make commannd:
+If you want to create a image for the DuoS with EMMC, you can add "STORAGE_TYPE=emmc" to the make command:
 ```
 podman run --privileged -it --rm -v ./configs/:/configs -v ./image:/output ghcr.io/fishwaldo/sophgo-sg200x-debian:master make BOARD=duos STORAGE_TYPE=emmc image
 ```
