@@ -1,8 +1,8 @@
 /dts-v1/;
-#include "sg200x_base_riscv.dtsi"
-#include "sg200x_asic_qfn.dtsi"
-#include "sg200x_asic_sd.dtsi"
-#include "sg200x_default_memmap.dtsi"
+#include "cv181x_base_riscv.dtsi"
+#include "cv181x_asic_qfn.dtsi"
+#include "cv181x_asic_sd.dtsi"
+#include "cv181x_default_memmap.dtsi"
 
 #include <dt-bindings/input/linux-event-codes.h>
 #include <dt-bindings/gpio/gpio.h>
@@ -47,11 +47,11 @@
 	cooling-maps {
 		map0 {
 			trip = <&soc_thermal_trip_0>;
-			cooling-device = <&cooling THERMAL_NO_LIMIT 1>;
+			cooling-device = <&cv181x_cooling THERMAL_NO_LIMIT 1>;
 		};
 		map1 {
 			trip = <&soc_thermal_trip_1>;
-			cooling-device = <&cooling THERMAL_NO_LIMIT THERMAL_NO_LIMIT>;
+			cooling-device = <&cv181x_cooling THERMAL_NO_LIMIT THERMAL_NO_LIMIT>;
 		};
 	};
 };

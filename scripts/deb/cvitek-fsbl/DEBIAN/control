@@ -2,5 +2,5 @@ Package: cvitek-fsbl
 Architecture: riscv64
 Maintainer: @fishwaldo
 Priority: optional
-Version: 1.0.0
+Version: 1.1.0
 Description: First Stage Boot Loader for the CV18xx and SG200X series of RISC-V SoC's

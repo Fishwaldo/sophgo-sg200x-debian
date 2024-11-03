@@ -4,13 +4,13 @@ Date: Thu, 18 Apr 2024 13:38:27 +0000
 Subject: [PATCH] add debug mode
 
 ---
- plat/sg200x/bl2/bl2_opt.c | 15 +++++++++++++++
+ plat/cv180x/bl2/bl2_opt.c | 15 +++++++++++++++
  1 file changed, 15 insertions(+)
 
-diff --git a/plat/sg200x/bl2/bl2_opt.c b/plat/sg200x/bl2/bl2_opt.c
+diff --git a/plat/cv180x/bl2/bl2_opt.c b/plat/cv180x/bl2/bl2_opt.c
 index c73fa55..013d5de 100644
---- a/plat/sg200x/bl2/bl2_opt.c
-+++ b/plat/sg200x/bl2/bl2_opt.c
+--- a/plat/cv180x/bl2/bl2_opt.c
++++ b/plat/cv180x/bl2/bl2_opt.c
 @@ -419,6 +419,21 @@ retry_from_flash:
  
  	switch_rtc_mode_2nd_stage();

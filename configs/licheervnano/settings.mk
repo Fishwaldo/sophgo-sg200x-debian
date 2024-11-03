@@ -1,5 +1,5 @@
-CHIP=sg200x
-UBOOT_CHIP=sg2002
+CHIP=cv181x
+UBOOT_CHIP=cv181x
 UBOOT_BOARD=licheervnano_sd
 BOOT_CPU=riscv
 ARCH=riscv
