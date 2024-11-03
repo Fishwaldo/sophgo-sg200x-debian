@@ -70,7 +70,7 @@ jobs:
       - name: Build Images
         uses: addnab/docker-run-action@v3
         with:
-          image: ghcr.io/fishwaldo/sophgo-sg200x-debian:master
+          image: ghcr.io/fishwaldo/sophgo-sg200x-debian:${{ github.ref_name }}
           options: --privileged -v ${{ github.workspace }}/images/:/output -v ${{ github.workspace }}/configs/:/configs/
           run: |
             make BOARD=${{ matrix.boards }} STORAGE_TYPE=${{ matrix.storage }} image
